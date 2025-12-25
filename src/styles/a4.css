@@ -1,0 +1,50 @@
+.a4-page {
+  width: 210mm;
+  min-height: 297mm;
+  margin: 20px auto;
+  padding: 20mm;
+  background: #fff;
+  color: #000;
+  font-size: 16px;
+  line-height: 1.7;
+  box-sizing: border-box;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+}
+
+
+.signature-section {
+  margin-top: 30px;
+  padding: 10px;
+  page-break-before: always;
+}
+
+.signature-section .ant-row {
+  display: flex;
+  justify-content: space-between;
+}
+
+.signature-section .ant-col {
+  flex: 1;
+  padding-right: 10px;
+}
+
+.signature-section .ant-col:last-child {
+  padding-right: 0;
+}
+
+.signature-section .signature-pad {
+  border: 1px solid #000;
+  height: 120px;
+  margin-bottom: 12px;
+  background: #fff;
+  width: 100%;
+}
+
+.signature-section .ant-col {
+  text-align: center;
+}
+
+.signature-section .ant-col > div {
+  margin: 0 auto;
+}
