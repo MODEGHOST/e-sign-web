@@ -1,3 +1,4 @@
+// src/components/ContractRenderer.tsx
 import { Typography, Divider, Watermark } from "antd";
 import type { ContractConfig } from "../types/contract";
 import "../styles/a4.css";
@@ -8,16 +9,16 @@ const { Title, Paragraph } = Typography;
 
 type Props = {
   config: ContractConfig;
-  mode?: "edit" | "view";
-  onSignedAll?: (data: Record<string, string>) => void;
-  customerSignatures?: string[];
+  mode?: "edit" | "view" | "final";
+  onSignedAll?: (data: Record<string, string>, stamp?: string | null) => void;
+  customerSignatureMap?: Record<string, string>;
 };
 
 export default function ContractRenderer({
   config,
   mode = "view",
   onSignedAll,
-  customerSignatures,
+  customerSignatureMap = {},
 }: Props) {
   return (
     <div className="a4-page">
@@ -30,7 +31,13 @@ export default function ContractRenderer({
           {config.title}
         </Title>
 
-        <Paragraph style={{ textAlign: "right", marginBottom: "30px", marginTop: "30px" }}>
+        <Paragraph
+          style={{
+            textAlign: "right",
+            marginBottom: "30px",
+            marginTop: "30px",
+          }}
+        >
           สัญญาจัดทำขึ้น ณ วันที่ {config.date}
         </Paragraph>
 
@@ -60,10 +67,10 @@ export default function ContractRenderer({
           >
             {config.partyA.company}
           </b>
-          เป็นผู้จัดทำขึ้นสถานะที่สำนักงานใหญ่ เลขที่ 212/249-250 หมู่บ้าน
-          คุณาลัย คอร์ทยาร์ด ถนนบ้านกล้วย-ไทรน้อย ตำบลพิมลราช อำเภอบางบัวทอง
-          จังหวัด นนทบุรี 11110 เบอร์ติดต่อหมายเลข 092-586-3663 ซึ่งต่อไปนี้
-          ในสัญญาเรียกว่า “ผู้รับจ้าง” โดยรับจ้างทำบัญชี ให้แก่{" "}
+          เป็นผู้จัดทำขึ้นสถานะที่สำนักงานใหญ่ เลขที่ 212/249-250 หมู่บ้าน คุณาลัย
+          คอร์ทยาร์ด ถนนบ้านกล้วย-ไทรน้อย ตำบลพิมลราช อำเภอบางบัวทอง จังหวัด
+          นนทบุรี 11110 เบอร์ติดต่อหมายเลข 092-586-3663 ซึ่งต่อไปนี้ ในสัญญาเรียกว่า
+          “ผู้รับจ้าง” โดยรับจ้างทำบัญชี ให้แก่{" "}
           <b
             style={{
               fontSize: "15px",
@@ -137,35 +144,15 @@ export default function ContractRenderer({
           </div>
         ))}
       </Watermark>
-      <Divider />
 
-      {/* แสดงลายเซ็นจากลูกค้า */}
-      <div style={{ marginTop: 16 }}>
-        <h3>ลายเซ็นลูกค้า:</h3>
-        <div style={{ display: "flex", flexWrap: "wrap" }}>
-          {customerSignatures &&
-            customerSignatures.map((signature, index) => (
-              <div key={index} style={{ margin: "10px" }}>
-                <img
-                  src={`data:image/png;base64,${signature}`}
-                  alt={`Signature ${index}`}
-                  style={{
-                    width: "150px",
-                    height: "auto",
-                    border: "1px solid #ccc",
-                  }}
-                />
-              </div>
-            ))}
-        </div>
-      </div>
+      <Divider />
 
       <ContractSignSection
         signatures={config.signatures}
         stamp={config.stamp}
         mode={mode}
-        customerSignatures={customerSignatures}
         onSignedAll={onSignedAll}
+        customerSignatureMap={customerSignatureMap}
       />
     </div>
   );

@@ -18,9 +18,12 @@ export type Clause = {
 export type SignatureInfo = {
   id: string;
   role: string;
-  name: string;
-  position: string;
+  name?: string;
+  position?: string;
+  image?: string;
+  inlineName?: boolean; // ✅ เพิ่ม
 };
+
 
 export type ContractConfig = {
   title: string;

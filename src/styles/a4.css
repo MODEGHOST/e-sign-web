@@ -48,3 +48,10 @@
 .signature-section .ant-col > div {
   margin: 0 auto;
 }
+
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}

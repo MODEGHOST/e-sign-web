@@ -1,3 +1,4 @@
+// src/pages/admin/ContractEditor.tsx
 import { useState, useEffect } from "react";
 import {
   Input,
@@ -8,38 +9,111 @@ import {
   Upload,
   Typography,
   Tabs,
+  Switch,
+  Tag,
 } from "antd";
 import { PlusOutlined, UploadOutlined } from "@ant-design/icons";
 import ContractRenderer from "../../components/ContractRenderer";
 import ClauseEditor from "../../components/ClauseEditor";
 import { accountingTemplate } from "../../templates/accounting";
-import type {
-  ContractConfig,
-  Clause,
-  SignatureInfo
-} from "../../types/contract";
+import type { ContractConfig, Clause, SignatureInfo } from "../../types/contract";
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
+
+/**
+ * ✅ 4 ช่องลายเซ็น "ตายตัว" ตาม requirement ของคุณ
+ * - บริษัท: กรรมการ, พยาน
+ * - ลูกค้า: กรรมการ, พยาน
+ *
+ * role เป็น key ไม่ซ้ำ เพื่อไม่ให้ชนกันเวลา map ลายเซ็น
+ */
+const REQUIRED_SIGNATURES: SignatureInfo[] = [
+  {
+    id: "sig-company-director",
+    role: "company_director",
+    name: "กรรมการบริษัท",
+    position: "",
+    inlineName: true,
+  },
+  {
+    id: "sig-company-witness",
+    role: "company_witness",
+    name: "พยาน (บริษัท)",
+    position: "",
+    inlineName: false,
+  },
+  {
+    id: "sig-customer-director",
+    role: "customer_director",
+    name: "กรรมการลูกค้า",
+    position: "",
+    inlineName: true,
+  },
+  {
+    id: "sig-customer-witness",
+    role: "customer_witness",
+    name: "พยาน (ลูกค้า)",
+    position: "",
+    inlineName: false,
+  },
+];
+
+const ensureSignatures = (cfg: ContractConfig): ContractConfig => {
+  const current = cfg.signatures || [];
+
+  // ถ้ามีครบ 4 แล้วก็ใช้ของเดิม
+  if (current.length === 4) return cfg;
+
+  // ถ้ามีเก่า/ไม่ครบ/มากกว่า ให้ "รีเซ็ตให้เป็นมาตรฐาน 4 ช่อง"
+  return {
+    ...cfg,
+    signatures: REQUIRED_SIGNATURES.map((s) => ({
+      ...s,
+      // เผื่อมีค่าเดิมที่อยากคงไว้บางส่วน (optional)
+      // ถ้าอยากคง name/position ของเดิม ให้หา match ตาม role แล้วแทนค่าได้
+    })),
+  };
+};
+
+const roleLabel = (role: string) => {
+  switch (role) {
+    case "company_director":
+      return "กรรมการ (บริษัท)";
+    case "company_witness":
+      return "พยาน (บริษัท)";
+    case "customer_director":
+      return "กรรมการ (ลูกค้า)";
+    case "customer_witness":
+      return "พยาน (ลูกค้า)";
+    default:
+      return role;
+  }
+};
 
 export default function ContractEditor() {
-  const [config, setConfig] = useState<ContractConfig>(accountingTemplate);
+  // ✅ ทำให้ template ได้ signatures ครบ 4 ตั้งแต่เริ่ม
+  const [config, setConfig] = useState<ContractConfig>(() =>
+    ensureSignatures(accountingTemplate)
+  );
+
   const [documentId, setDocumentId] = useState<string | null>(null);
   const [email, setEmail] = useState("");
 
   useEffect(() => {
     const savedId = localStorage.getItem("lastDocumentId");
-    if (savedId) {
-      fetch(`http://localhost:4000/api/contracts/${savedId}`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.config) {
-            setConfig(data.config);
-            setDocumentId(savedId);
-            message.success("โหลดสัญญาล่าสุดเรียบร้อยแล้ว");
-          }
-        })
-        .catch(() => message.error("โหลดสัญญาไม่สำเร็จ"));
-    }
+    if (!savedId) return;
+
+    fetch(`http://localhost:4000/api/contracts/${savedId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.config) {
+          // ✅ โหลดแล้ว ensure ให้ครบ 4 ช่องด้วย
+          setConfig(ensureSignatures(data.config));
+          setDocumentId(savedId);
+          message.success("โหลดสัญญาล่าสุดเรียบร้อยแล้ว");
+        }
+      })
+      .catch(() => message.error("โหลดสัญญาไม่สำเร็จ"));
   }, []);
 
   const updateClause = (index: number, updated: Clause) => {
@@ -75,31 +149,15 @@ export default function ContractEditor() {
     });
   };
 
-  const addSignature = () => {
-    setConfig({
-      ...config,
-      signatures: [
-        ...(config.signatures || []),
-        { id: crypto.randomUUID(), role: "", name: "", position: "" },
-      ],
-    });
-  };
-
+  // ✅ updateSignature รองรับ string | boolean (เพื่อ inlineName)
   const updateSignature = (
     index: number,
     field: keyof SignatureInfo,
-    value: string
+    value: string | boolean
   ) => {
     const newSigns = [...(config.signatures || [])];
-    newSigns[index][field] = value;
+    (newSigns[index] as any)[field] = value;
     setConfig({ ...config, signatures: newSigns });
-  };
-
-  const deleteSignature = (index: number) => {
-    setConfig({
-      ...config,
-      signatures: (config.signatures || []).filter((_, i) => i !== index),
-    });
   };
 
   const handleStampUpload = (file: File) => {
@@ -115,8 +173,10 @@ export default function ContractEditor() {
       const res = await fetch("http://localhost:4000/api/contracts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ config }),
+        // ✅ ensure อีกชั้นก่อนส่ง
+        body: JSON.stringify({ config: ensureSignatures(config) }),
       });
+
       const data = await res.json();
       setDocumentId(data.documentId);
       localStorage.setItem("lastDocumentId", data.documentId);
@@ -128,11 +188,13 @@ export default function ContractEditor() {
 
   const sendEmail = async () => {
     if (!documentId) return message.warning("กรุณาบันทึกสัญญาก่อน");
+
     const res = await fetch("http://localhost:4000/send-sign-email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, documentId }),
     });
+
     const data = await res.json();
     if (res.ok) message.success("ส่งอีเมลเรียบร้อยแล้ว");
     else message.error("ส่งอีเมลไม่สำเร็จ: " + data.message);
@@ -228,6 +290,7 @@ export default function ContractEditor() {
                   >
                     <Button icon={<UploadOutlined />}>อัปโหลดตราประทับ</Button>
                   </Upload>
+
                   {config.stamp && (
                     <img
                       src={config.stamp}
@@ -242,22 +305,41 @@ export default function ContractEditor() {
                     />
                   )}
 
-                  <Divider>ลายเซ็น</Divider>
+                  <Divider>ลายเซ็น (4 ช่องตายตัว)</Divider>
                   {(config.signatures || []).map((sign, index) => (
                     <Card
                       key={sign.id}
                       size="small"
                       style={{ marginBottom: 8, background: "#fafafa" }}
+                      title={
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 8,
+                          }}
+                        >
+                          <div>
+                            <Tag color="blue">{roleLabel(sign.role)}</Tag>
+                          </div>
+
+                          <div style={{ display: "flex", gap: 10 }}>
+                            <Text style={{ fontSize: 12, color: "#555" }}>
+                              แสดงชื่อในบรรทัดลงชื่อ
+                            </Text>
+                            <Switch
+                              checked={!!sign.inlineName}
+                              onChange={(checked) =>
+                                updateSignature(index, "inlineName", checked)
+                              }
+                            />
+                          </div>
+                        </div>
+                      }
                     >
+                      {/* ❌ role ไม่ให้แก้เองแล้ว (กันชนกัน/มั่ว) */}
                       <Input
-                        placeholder="บทบาท เช่น ผู้ว่าจ้าง"
-                        value={sign.role}
-                        onChange={(e) =>
-                          updateSignature(index, "role", e.target.value)
-                        }
-                      />
-                      <Input
-                        style={{ marginTop: 6 }}
                         placeholder="ชื่อผู้ลงนาม"
                         value={sign.name}
                         onChange={(e) =>
@@ -272,24 +354,24 @@ export default function ContractEditor() {
                           updateSignature(index, "position", e.target.value)
                         }
                       />
-                      <Button
-                        danger
-                        size="small"
-                        style={{ marginTop: 8 }}
-                        onClick={() => deleteSignature(index)}
-                      >
-                        ลบลายเซ็นนี้
-                      </Button>
+
+                      <div style={{ marginTop: 8, fontSize: 12, color: "#777" }}>
+                        Preview บรรทัดลงชื่อ:{" "}
+                        {sign.inlineName && sign.name ? (
+                          <b>
+                            (ลงชื่อ) .......... {sign.name} ..........{" "}
+                            {roleLabel(sign.role)}
+                          </b>
+                        ) : (
+                          <b>
+                            (ลงชื่อ)
+                            ........................................................{" "}
+                            {roleLabel(sign.role)}
+                          </b>
+                        )}
+                      </div>
                     </Card>
                   ))}
-                  <Button
-                    block
-                    type="dashed"
-                    icon={<PlusOutlined />}
-                    onClick={addSignature}
-                  >
-                    เพิ่มลายเซ็น
-                  </Button>
                 </>
               ),
             },
@@ -302,12 +384,14 @@ export default function ContractEditor() {
                   <Button type="primary" block onClick={saveConfig}>
                     บันทึกสัญญา
                   </Button>
+
                   <Input
                     placeholder="อีเมลผู้เซ็นเอกสาร"
                     style={{ marginTop: 8 }}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                   />
+
                   <Button
                     block
                     type="default"
@@ -322,6 +406,7 @@ export default function ContractEditor() {
           ]}
         />
       </Card>
+
       <Card title="Preview" style={{ flex: 1, borderRadius: 10 }}>
         <ContractRenderer config={config} />
       </Card>

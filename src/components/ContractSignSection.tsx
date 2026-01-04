@@ -1,10 +1,18 @@
+// src/components/ContractSignSection.tsx
 import { Upload, Typography, Button, Image } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import SignatureCanvas from "react-signature-canvas";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Row, Col } from "reactstrap";
 
 const { Text } = Typography;
+
+const toImgSrc = (sig?: string) => {
+  if (!sig) return "";
+  return sig.startsWith("data:image") ? sig : `data:image/png;base64,${sig}`;
+};
+
+const isCustomerRole = (role: string) => role.startsWith("customer_");
 
 type SignItemProps = {
   role: string;
@@ -12,8 +20,8 @@ type SignItemProps = {
   position?: string;
   inlineName?: boolean;
   locked?: boolean;
-  image?: string; // เพิ่มการรับ prop นี้
-  mode?: "edit" | "view";
+  image?: string;
+  mode?: "edit" | "view" | "final";
   onSigned?: (dataUrl: string, role: string) => void;
 };
 
@@ -38,41 +46,100 @@ function SignItem({
     }
   };
 
-  // ถ้าเป็นโหมด "view" แสดงภาพลายเซ็นจาก prop image
-  if (mode === "view") {
+  if (mode === "final") {
     return (
-      <div style={{ textAlign: "center", marginBottom: 40 }}>
-        {image ? (
-          <img
-            src={`data:image/png;base64,${image}`}
-            alt={name}
-            style={{
-              width: 180,
-              height: 80,
-              objectFit: "contain",
-              borderBottom: "1px dotted #ccc",
-            }}
-          />
-        ) : (
-          <div
-            style={{
-              width: 180,
-              height: 80,
-              borderBottom: "1px dotted #ccc",
-              margin: "0 auto 10px",
-            }}
-          />
-        )}
-        <div>
-          (ลงชื่อ) {name ? `(${name})` : "................................"}
+      <div style={{ marginBottom: 28 }}>
+        <div
+          style={{
+            width: "100%",
+            height: 90,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {image ? (
+            <img
+              src={toImgSrc(image)}
+              alt={name ?? role}
+              style={{
+                maxWidth: "100%",
+                maxHeight: "100%",
+                objectFit: "contain",
+              }}
+            />
+          ) : (
+            <div style={{ width: "100%", height: 90 }} />
+          )}
         </div>
-        <div>{role}</div>
+
+        <div style={{ marginTop: 6 }}>
+          <Text style={{ fontSize: 14 }}>
+            (ลงชื่อ){" "}
+            {inlineName && name ? (
+              <>
+                {".......... "} {name} {" .......... "}
+              </>
+            ) : (
+              <>{"........................................................ "}</>
+            )}
+            {role}
+          </Text>
+        </div>
+
         {position && <div>{position}</div>}
       </div>
     );
   }
 
-  // ถ้าเป็นโหมด "edit" ให้แสดง SignatureCanvas
+  if (mode === "view") {
+    return (
+      <div style={{ marginBottom: 40 }}>
+        <div
+          style={{
+            width: "100%",
+            height: 140,
+            border: "2px solid #d9d9d9",
+            background: "#fff",
+            borderRadius: 10,
+            overflow: "hidden",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {image ? (
+            <img
+              src={toImgSrc(image)}
+              alt={name ?? role}
+              style={{
+                maxWidth: "100%",
+                maxHeight: "100%",
+                objectFit: "contain",
+              }}
+            />
+          ) : null}
+        </div>
+
+        <div style={{ marginTop: 10 }}>
+          <Text style={{ fontSize: 14 }}>
+            (ลงชื่อ){" "}
+            {inlineName && name ? (
+              <>
+                {".......... "} {name} {" .......... "}
+              </>
+            ) : (
+              <>{"........................................................ "}</>
+            )}
+            {role}
+          </Text>
+        </div>
+
+        {position && <div>{position}</div>}
+      </div>
+    );
+  }
+
   return (
     <div style={{ marginBottom: 40 }}>
       <div
@@ -109,15 +176,12 @@ function SignItem({
           (ลงชื่อ){" "}
           {inlineName && name ? (
             <>
-              {".................... "} {name} {" .................... "}
-              {role}
+              {".......... "} {name} {" .......... "}
             </>
           ) : (
-            <>
-              {"........................................................ "}
-              {role}
-            </>
+            <>{"........................................................ "}</>
           )}
+          {role}
         </Text>
 
         {!locked && (
@@ -127,11 +191,6 @@ function SignItem({
         )}
       </div>
 
-      {!inlineName && name && (
-        <div style={{ marginTop: 4 }}>
-          <Text>({name})</Text>
-        </div>
-      )}
       {position && <div>{position}</div>}
     </div>
   );
@@ -144,29 +203,39 @@ type ContractSignSectionProps = {
     name?: string;
     position?: string;
     image?: string;
-  }[]; // เพิ่มการรับลายเซ็นลูกค้า
-  customerSignatures?: string[]; // เพิ่ม prop สำหรับลายเซ็นของลูกค้า
+    inlineName?: boolean;
+  }[];
   stamp?: string | null;
-  mode?: "edit" | "view";
-  onSignedAll?: (signatures: Record<string, string>, stamp?: string | null) => void;
+  mode?: "edit" | "view" | "final";
+  onSignedAll?: (
+    signatures: Record<string, string>,
+    stamp?: string | null
+  ) => void;
+  customerSignatureMap?: Record<string, string>;
 };
 
 export default function ContractSignSection({
   signatures = [],
-  customerSignatures = [], // รับลายเซ็นของลูกค้า
   stamp: defaultStamp = null,
   mode = "edit",
   onSignedAll,
+  customerSignatureMap = {},
 }: ContractSignSectionProps) {
   const [stamp, setStamp] = useState<string | null>(defaultStamp);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [signData, setSignData] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    setStamp(defaultStamp ?? null);
+  }, [defaultStamp]);
 
   const handleSigned = (dataUrl: string, role: string) => {
     const newData = { ...signData, [role]: dataUrl };
     setSignData(newData);
     onSignedAll?.(newData, stamp);
   };
+
+  const isFinal = mode === "final";
 
   return (
     <div className="signature-section" style={{ marginTop: 40 }}>
@@ -180,7 +249,6 @@ export default function ContractSignSection({
       >
         <Col md={6}>
           <Row
-            align="middle"
             style={{
               display: "flex",
               alignItems: "center",
@@ -243,21 +311,19 @@ export default function ContractSignSection({
                   </div>
                 )}
               </Upload>
-            ) : (
-              stamp && (
-                <img
-                  src={stamp}
-                  alt="ตราประทับ"
-                  style={{
-                    width: 120,
-                    height: 120,
-                    borderRadius: "50%",
-                    objectFit: "cover",
-                    border: "1px solid #e6f4ff",
-                  }}
-                />
-              )
-            )}
+            ) : stamp ? (
+              <img
+                src={stamp}
+                alt="ตราประทับ"
+                style={{
+                  width: isFinal ? 100 : 120,
+                  height: isFinal ? 100 : 120,
+                  borderRadius: "50%",
+                  objectFit: "cover",
+                  border: "1px solid #e6f4ff",
+                }}
+              />
+            ) : null}
 
             {stamp && (
               <Image
@@ -274,28 +340,30 @@ export default function ContractSignSection({
       </Row>
 
       <Row className="gy-4 gx-4">
-        {signatures.map((sig) => (
-          <Col md={6} key={sig.id}>
-            <SignItem
-              role={sig.role}
-              name={sig.name}
-              position={sig.position}
-              image={sig.image} // ส่งลายเซ็นลูกค้ามาจาก API
-              mode={mode}
-              onSigned={handleSigned}
-            />
-          </Col>
-        ))}
-        {/* ถ้ามีลายเซ็นลูกค้าก็แสดง */}
-        {customerSignatures.length > 0 && (
-          <Col md={6}>
-            <SignItem
-              role="customer"
-              image={customerSignatures[0]} // สมมุติว่ามีแค่ลายเซ็นลูกค้า 1 ลายเซ็น
-              mode="view"
-            />
-          </Col>
-        )}
+        {signatures.map((sig) => {
+          const mappedImg = customerSignatureMap[sig.role];
+          const img = mappedImg || sig.image;
+          const isMapped = !!mappedImg;
+
+          let finalMode: "edit" | "view" | "final" = mode;
+          if (isFinal) finalMode = "final";
+          else if (isMapped) finalMode = "view";
+
+          return (
+            <Col md={6} key={sig.id}>
+              <SignItem
+                role={sig.role}
+                name={sig.name}
+                position={sig.position}
+                inlineName={sig.inlineName}
+                image={img}
+                mode={finalMode}
+                locked={isFinal || isMapped}
+                onSigned={isFinal || isMapped ? undefined : handleSigned}
+              />
+            </Col>
+          );
+        })}
       </Row>
     </div>
   );

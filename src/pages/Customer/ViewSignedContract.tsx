@@ -1,52 +1,103 @@
 import { useParams } from "react-router-dom";
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, message } from "antd";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import ContractRenderer from "../../components/ContractRenderer";
 import type { ContractConfig } from "../../types/contract";
+import "../../styles/a4.css";
+
+type ApiSignature = {
+  role: string;
+  signature_image: string;
+};
 
 export default function ViewSignedContract() {
   const { documentId } = useParams();
   const [config, setConfig] = useState<ContractConfig | null>(null);
+  const [sigMap, setSigMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const pdfRef = useRef<HTMLDivElement>(null);
 
-  // ✅ โหลดสัญญาฉบับที่เซ็นครบแล้ว
   useEffect(() => {
-    if (documentId) {
-      setLoading(true);
-      fetch(`http://localhost:4000/api/contracts/${documentId}`)
-        .then((res) => {
-          if (!res.ok) throw new Error("ไม่สามารถโหลดข้อมูลสัญญาได้");
-          return res.json();
-        })
-        .then((data) => {
-          setConfig(data.config);
-          setLoading(false);
-        })
-        .catch((err) => {
-          setError(err.message);
-          setLoading(false);
+    if (!documentId) return;
+
+    (async () => {
+      try {
+        setLoading(true);
+
+        const [contractRes, sigRes] = await Promise.all([
+          fetch(`http://localhost:4000/api/contracts/${documentId}`),
+          fetch(`http://localhost:4000/api/contracts/${documentId}/signatures`),
+        ]);
+
+        if (!contractRes.ok) throw new Error("ไม่สามารถโหลดข้อมูลสัญญาได้");
+        if (!sigRes.ok) throw new Error("ไม่สามารถโหลดลายเซ็นได้");
+
+        const contractData = await contractRes.json();
+        const sigData: { signatures: ApiSignature[] } = await sigRes.json();
+
+        setConfig(contractData.config);
+
+        const map: Record<string, string> = {};
+        (sigData.signatures || []).forEach((s) => {
+          if (s?.role && s?.signature_image) map[s.role] = s.signature_image;
         });
-    }
+        setSigMap(map);
+
+        setError(null);
+      } catch (err: any) {
+        setError(err?.message || "เกิดข้อผิดพลาด");
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [documentId]);
 
-  // ✅ ดาวน์โหลด PDF ฉบับจริง
   const handleDownloadPDF = async () => {
     if (!pdfRef.current) return;
+
+    const root = pdfRef.current;
+    const toHide = Array.from(root.querySelectorAll(".no-print")) as HTMLElement[];
+
     try {
-      const canvas = await html2canvas(pdfRef.current, { scale: 2 });
+      toHide.forEach((el) => (el.style.display = "none"));
+
+      const canvas = await html2canvas(root, {
+        scale: 2,
+        backgroundColor: "#ffffff",
+        ignoreElements: (el) => (el as HTMLElement).classList?.contains("no-print"),
+      });
+
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF("p", "mm", "a4");
+
       const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = (canvas.height * pageWidth) / canvas.width;
-      pdf.addImage(imgData, "PNG", 0, 0, pageWidth, pageHeight);
+      const pageHeight = pdf.internal.pageSize.getHeight();
+
+      const imgWidth = pageWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft > 0) {
+        position -= pageHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
       pdf.save(`${config?.title || "contract"}.pdf`);
       message.success("✅ ดาวน์โหลด PDF เรียบร้อยแล้ว");
-    } catch (err) {
+    } catch {
       message.error("❌ เกิดข้อผิดพลาดระหว่างสร้าง PDF");
+    } finally {
+      toHide.forEach((el) => (el.style.display = ""));
     }
   };
 
@@ -56,13 +107,11 @@ export default function ViewSignedContract() {
 
   return (
     <div style={{ margin: "0 auto", maxWidth: 900 }}>
-      {/* แสดงเอกสารเต็ม */}
       <div ref={pdfRef}>
-        <ContractRenderer config={config} mode="view" />
+        <ContractRenderer config={config} mode="final" customerSignatureMap={sigMap} />
       </div>
 
-      {/* ปุ่มดาวน์โหลด PDF */}
-      <div style={{ textAlign: "center", marginTop: 24 }}>
+      <div className="no-print" style={{ textAlign: "center", marginTop: 24 }}>
         <Button type="primary" onClick={handleDownloadPDF}>
           📄 ดาวน์โหลด PDF ฉบับเต็ม
         </Button>
