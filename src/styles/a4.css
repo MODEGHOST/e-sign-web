@@ -1,57 +1,116 @@
-.a4-page {
-  width: 210mm;
-  min-height: 297mm;
-  margin: 20px auto;
-  padding: 20mm;
-  background: #fff;
-  color: #000;
-  font-size: 16px;
-  line-height: 1.7;
-  box-sizing: border-box;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.15);
-  overflow: hidden;
+/* =======================
+   A4: แสดงบนจอ (Screen)
+   ======================= */
+.a4-page{
+  width:210mm;
+  min-height:297mm;
+  margin:0 auto;
+  padding:20mm;                 /* ใช้กับหน้าเนื้อหาเท่านั้น */
+  background:#fff;
+  color:#000;
+  font-size:16px;
+  line-height:1.7;
+  box-sizing:border-box;
+  box-shadow:0 0 10px rgba(0,0,0,.15);
+  overflow:hidden;
 }
 
-
-.signature-section {
-  margin-top: 30px;
-  padding: 10px;
-  page-break-before: always;
+/* หน้าปก */
+.a4-cover{
+  padding:0 !important;
+  width:210mm;
+  height:297mm;
+  box-shadow:0 0 10px rgba(0,0,0,.15);
+}
+.a4-cover img{
+  display:block;
+  width:210mm;
+  height:297mm;
+  object-fit:cover;
 }
 
-.signature-section .ant-row {
-  display: flex;
-  justify-content: space-between;
+/* กล่องเนื้อหา (ทั้งหมดของสัญญาอยู่ในนี้) */
+.contract-body{ position:relative; }
+
+/* แถบหัวที่สคริปต์ paginate แปะให้ทุกหน้าเนื้อหา */
+.content-header-band{
+  height:14mm;
+  background:#222;
+  position:relative;
+  -webkit-print-color-adjust:exact;
+          print-color-adjust:exact;
+}
+.content-header-band::after{
+  content:"";
+  position:absolute; right:0; top:0; bottom:0; width:42mm;
+  background:linear-gradient(135deg,
+    transparent 0 28%, #f39c12 28% 45%,
+    transparent 45% 55%, #f39c12 55% 72%, transparent 72% 100%);
+}
+.content-header-band::before{
+  content:"";
+  position:absolute; left:0; right:0; bottom:0; height:1.5px;
+  background:#fff; opacity:.9;
 }
 
-.signature-section .ant-col {
-  flex: 1;
-  padding-right: 10px;
+/* ตัวช่วยขึ้นหน้า/กันโดนตัดครึ่ง */
+.page-break{ display:block; height:0; }
+.avoid-break{ break-inside:avoid; page-break-inside:avoid; }
+
+/* ==========================
+   ส่วนลายเซ็น (บนจอ)
+   ========================== */
+.signature-section{ margin-top:30px; padding:10px; }
+.signature-section .ant-row{ display:flex; justify-content:space-between; }
+.signature-section .ant-col{ flex:1; padding-right:10px; text-align:center; }
+.signature-section .ant-col:last-child{ padding-right:0; }
+.signature-section .signature-pad{
+  border:1px solid #000; height:120px; margin-bottom:12px; background:#fff; width:100%;
 }
+.signature-section .ant-col>div{ margin:0 auto; }
 
-.signature-section .ant-col:last-child {
-  padding-right: 0;
-}
+/* =======================
+   พิมพ์ / Export PDF
+   ======================= */
+@media print{
+  @page{ size:A4; margin:0; }
 
-.signature-section .signature-pad {
-  border: 1px solid #000;
-  height: 120px;
-  margin-bottom: 12px;
-  background: #fff;
-  width: 100%;
-}
+  html,body{ height:auto; margin:0; }
+  body{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
 
-.signature-section .ant-col {
-  text-align: center;
-}
-
-.signature-section .ant-col > div {
-  margin: 0 auto;
-}
-
-
-@media print {
-  .no-print {
-    display: none !important;
+  .a4-page{
+    width:210mm;
+    min-height:297mm;           /* ปล่อยสูงตามเนื้อหา */
+    height:auto;
+    overflow:visible;           /* สำคัญ: ไม่ให้ส่วนเกินถูกซ่อน */
+    margin:0;
+    padding:20mm;               /* ขอบเนื้อหา A4 */
+    box-shadow:none;
+    break-after:page;           /* แตกหน้า A4 */
+    page-break-after:always;
   }
+  .a4-page:last-child{
+    break-after:auto;
+    page-break-after:auto;
+  }
+
+  /* หน้าปกพอดีแผ่น */
+  .a4-cover{
+    width:210mm; height:297mm; padding:0 !important; overflow:hidden;
+  }
+
+  /* บังคับขึ้นหน้าใหม่ด้วยตัวคั่น */
+  .page-break{ break-before:page; page-break-before:always; }
+
+  /* กันองค์ประกอบสำคัญโดนตัด */
+  .avoid-break,
+  .signature-section{
+    break-inside:avoid; page-break-inside:avoid;
+  }
+
+  /* ถ้าขึ้นหน้าใหม่ของ "เนื้อหา" ให้เว้นหัวไว้เล็กน้อย
+     (สคริปต์ paginate จะสร้าง .a4-page ใหม่พร้อม .content-header-band อยู่ข้างบน) */
+  .page-break + .contract-body{ margin-top:25mm; }
+
+  .no-print{ display:none !important; }
 }

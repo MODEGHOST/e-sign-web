@@ -66,6 +66,7 @@ export default function DisplayContract() {
       <ContractRenderer
         config={config}
         mode="edit"
+        viewFor="customer"
         onSignedAll={(data) => setSignatures(data)}
       />
 

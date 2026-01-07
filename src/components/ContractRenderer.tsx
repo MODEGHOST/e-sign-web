@@ -3,7 +3,8 @@ import { Typography, Divider, Watermark } from "antd";
 import type { ContractConfig } from "../types/contract";
 import "../styles/a4.css";
 import ContractSignSection from "./ContractSignSection";
-import contractImage from "../assets/หน้าปกสัญญาจ้าง.png";
+import bmuOpacity from "../assets/BMU_opacity.png";
+import coverImage from "../assets/Cover_Final.png";
 
 const { Title, Paragraph } = Typography;
 
@@ -12,6 +13,7 @@ type Props = {
   mode?: "edit" | "view" | "final";
   onSignedAll?: (data: Record<string, string>, stamp?: string | null) => void;
   customerSignatureMap?: Record<string, string>;
+  viewFor?: "customer" | "company" | "all";
 };
 
 export default function ContractRenderer({
@@ -19,141 +21,159 @@ export default function ContractRenderer({
   mode = "view",
   onSignedAll,
   customerSignatureMap = {},
+  viewFor = "all",
 }: Props) {
   return (
-    <div className="a4-page">
-      <Watermark
-        height={30}
-        width={140}
-        image="https://mdn.alipayobjects.com/huamei_7uahnr/afts/img/A*lkAoRbywo0oAAAAAAAAAAAAADrJ8AQ/original"
-      >
-        <Title level={3} style={{ textAlign: "center" }}>
-          {config.title}
-        </Title>
-
-        <Paragraph
+    <>
+      {/* === 🧾 หน้าปกสัญญา === */}
+      <div className="a4-page a4-cover">
+        <img
+          src={coverImage}
+          alt="หน้าปกสัญญา"
           style={{
-            textAlign: "right",
-            marginBottom: "30px",
-            marginTop: "30px",
+            display: "block",
+            width: "210mm",
+            height: "297mm",
+            objectFit: "cover",
           }}
-        >
-          สัญญาจัดทำขึ้น ณ วันที่ {config.date}
-        </Paragraph>
+        />
+      </div>
 
-        <Paragraph
-          style={{
-            textAlign: "justify",
-            lineHeight: 1.8,
-            marginBottom: "20px",
-          }}
-        >
-          <span
-            style={{
-              marginLeft: "30px",
-              display: "inline",
-              whiteSpace: "nowrap",
-            }}
-          >
-            สัญญาฉบับนี้{" "}
-          </span>
-          <b
-            style={{
-              fontSize: "15px",
-              margin: "0 5px 0 5px",
-              display: "inline",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {config.partyA.company}
-          </b>
-          เป็นผู้จัดทำขึ้นสถานะที่สำนักงานใหญ่ เลขที่ 212/249-250 หมู่บ้าน คุณาลัย
-          คอร์ทยาร์ด ถนนบ้านกล้วย-ไทรน้อย ตำบลพิมลราช อำเภอบางบัวทอง จังหวัด
-          นนทบุรี 11110 เบอร์ติดต่อหมายเลข 092-586-3663 ซึ่งต่อไปนี้ ในสัญญาเรียกว่า
-          “ผู้รับจ้าง” โดยรับจ้างทำบัญชี ให้แก่{" "}
-          <b
-            style={{
-              fontSize: "15px",
-              margin: "0 5px 0 5px",
-              display: "inline",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {config.partyB.company}
-          </b>
-          ซึ่งต่อไปนี้ในสัญญาเรียกว่า “ผู้ว่าจ้าง”
-          <br />
-          <span
-            style={{
-              marginLeft: "30px",
-              display: "inline",
-              whiteSpace: "nowrap",
-            }}
-          >
-            คู่สัญญาได้ตกลงกันมีข้อความดังต่อไปนี้
-          </span>
-        </Paragraph>
+      {/* === 📄 เนื้อหาสัญญาหลัก === */}
+      <div className="a4-page">
+        <Watermark height={30} width={140} image={bmuOpacity}>
+          <div className="avoid-break">
+            <Title level={3} style={{ textAlign: "center" }}>
+              {config.title}
+            </Title>
 
-        {config.clauses.map((clause, index) => (
-          <div key={clause.id} style={{ marginBottom: 16 }}>
-            {clause.title && (
-              <Paragraph
-                strong
-                style={{
-                  marginBottom: "10px",
-                  marginLeft: "30px",
-                  fontSize: "16px",
-                }}
-              >
-                ข้อ {index + 1}. {clause.title}
-              </Paragraph>
-            )}
-
-            {clause.blocks.map((block, blockIndex) => (
-              <div key={blockIndex}>
-                {block.type === "text" && (
-                  <Paragraph
-                    style={{
-                      lineHeight: 1.6,
-                      marginBottom: "12px",
-                      marginLeft: "30px",
-                      fontSize: "14px",
-                    }}
-                  >
-                    {block.content}
-                  </Paragraph>
-                )}
-
-                {block.type === "list" && (
-                  <ol style={{ paddingRight: "5px", marginBottom: "12px" }}>
-                    {block.items.map((item, i) => (
-                      <li
-                        key={i}
-                        style={{
-                          marginLeft: "30px",
-                          fontSize: "14px",
-                        }}
-                      >
-                        {item}
-                      </li>
-                    ))}
-                  </ol>
-                )}
-              </div>
-            ))}
+            <Paragraph
+              style={{
+                textAlign: "right",
+                marginBottom: "30px",
+                marginTop: "30px",
+              }}
+            >
+              สัญญาจัดทำขึ้น ณ วันที่ {config.date}
+            </Paragraph>
           </div>
-        ))}
-      </Watermark>
 
-      <Divider />
+          <Paragraph
+            style={{
+              textAlign: "justify",
+              lineHeight: 1.8,
+              marginBottom: "20px",
+            }}
+          >
+            <span
+              style={{
+                marginLeft: "30px",
+                display: "inline",
+                whiteSpace: "nowrap",
+              }}
+            >
+              สัญญาฉบับนี้{" "}
+            </span>
+            <b
+              style={{
+                fontSize: "15px",
+                margin: "0 5px",
+                display: "inline",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {config.partyA.company}
+            </b>
+            เป็นผู้จัดทำขึ้นสถานะที่สำนักงานใหญ่ เลขที่ 212/249-250 หมู่บ้าน
+            คุณาลัย คอร์ทยาร์ด ถนนบ้านกล้วย-ไทรน้อย ตำบลพิมลราช อำเภอบางบัวทอง
+            จังหวัด นนทบุรี 11110 เบอร์ติดต่อหมายเลข 092-586-3663 ซึ่งต่อไปนี้
+            ในสัญญาเรียกว่า “ผู้รับจ้าง” โดยรับจ้างทำบัญชี ให้แก่{" "}
+            <b
+              style={{
+                fontSize: "15px",
+                margin: "0 5px",
+                display: "inline",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {config.partyB.company}
+            </b>
+            ซึ่งต่อไปนี้ในสัญญาเรียกว่า “ผู้ว่าจ้าง”
+            <br />
+            <span
+              style={{
+                marginLeft: "30px",
+                display: "inline",
+                whiteSpace: "nowrap",
+              }}
+            >
+              คู่สัญญาได้ตกลงกันมีข้อความดังต่อไปนี้
+            </span>
+          </Paragraph>
 
+          {config.clauses.map((clause, index) => (
+            <div
+              key={clause.id}
+              className="avoid-break"
+              style={{ marginBottom: 16 }}
+            >
+              {clause.title && (
+                <Paragraph
+                  strong
+                  style={{
+                    marginBottom: "10px",
+                    marginLeft: "30px",
+                    fontSize: "16px",
+                  }}
+                >
+                  ข้อ {index + 1}. {clause.title}
+                </Paragraph>
+              )}
+
+              {clause.blocks.map((block, blockIndex) => (
+                <div key={blockIndex} className="avoid-break">
+                  {block.type === "text" && (
+                    <Paragraph
+                      style={{
+                        lineHeight: 1.6,
+                        marginBottom: "12px",
+                        marginLeft: "30px",
+                        fontSize: "14px",
+                      }}
+                    >
+                      {block.content}
+                    </Paragraph>
+                  )}
+
+                  {block.type === "list" && (
+                    <ol style={{ paddingRight: "5px", marginBottom: "12px" }}>
+                      {block.items.map((item, i) => (
+                        <li
+                          key={i}
+                          style={{ marginLeft: "30px", fontSize: "14px" }}
+                        >
+                          {item}
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                </div>
+              ))}
+            </div>
+          ))}
+        </Watermark>
+      </div>
+      
+      <div className="a4-page">
       <ContractSignSection
         signatures={config.signatures}
         stamp={config.stamp}
         mode={mode}
+        viewFor={viewFor}
         onSignedAll={onSignedAll}
         customerSignatureMap={customerSignatureMap}
       />
-    </div>
+      </div>
+    </>
   );
 }
