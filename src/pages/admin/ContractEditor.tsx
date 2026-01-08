@@ -16,17 +16,14 @@ import { PlusOutlined, UploadOutlined } from "@ant-design/icons";
 import ContractRenderer from "../../components/ContractRenderer";
 import ClauseEditor from "../../components/ClauseEditor";
 import { accountingTemplate } from "../../templates/accounting";
-import type { ContractConfig, Clause, SignatureInfo } from "../../types/contract";
+import type {
+  ContractConfig,
+  Clause,
+  SignatureInfo,
+} from "../../types/contract";
 
 const { Title, Text } = Typography;
 
-/**
- * ✅ 4 ช่องลายเซ็น "ตายตัว" ตาม requirement ของคุณ
- * - บริษัท: กรรมการ, พยาน
- * - ลูกค้า: กรรมการ, พยาน
- *
- * role เป็น key ไม่ซ้ำ เพื่อไม่ให้ชนกันเวลา map ลายเซ็น
- */
 const REQUIRED_SIGNATURES: SignatureInfo[] = [
   {
     id: "sig-company-director",
@@ -89,6 +86,11 @@ const roleLabel = (role: string) => {
       return role;
   }
 };
+
+const displayRole = (sign: SignatureInfo) =>
+  (sign.position?.trim() || "").length > 0
+    ? sign.position!.trim()
+    : roleLabel(sign.role);
 
 export default function ContractEditor() {
   // ✅ ทำให้ template ได้ signatures ครบ 4 ตั้งแต่เริ่ม
@@ -170,7 +172,7 @@ export default function ContractEditor() {
 
   const saveConfig = async () => {
     try {
-      const res = await fetch("http://localhost:4000/api/contracts", {
+      const res = await fetch(`http://localhost:4000/api/contracts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         // ✅ ensure อีกชั้นก่อนส่ง
@@ -189,7 +191,7 @@ export default function ContractEditor() {
   const sendEmail = async () => {
     if (!documentId) return message.warning("กรุณาบันทึกสัญญาก่อน");
 
-    const res = await fetch("http://localhost:4000/send-sign-email", {
+    const res = await fetch(`http://localhost:4000/send-sign-email`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, documentId }),
@@ -321,7 +323,7 @@ export default function ContractEditor() {
                           }}
                         >
                           <div>
-                            <Tag color="blue">{roleLabel(sign.role)}</Tag>
+                            <Tag color="blue">{displayRole(sign)}</Tag>
                           </div>
 
                           <div style={{ display: "flex", gap: 10 }}>
@@ -355,18 +357,20 @@ export default function ContractEditor() {
                         }
                       />
 
-                      <div style={{ marginTop: 8, fontSize: 12, color: "#777" }}>
+                      <div
+                        style={{ marginTop: 8, fontSize: 12, color: "#777" }}
+                      >
                         Preview บรรทัดลงชื่อ:{" "}
                         {sign.inlineName && sign.name ? (
                           <b>
                             (ลงชื่อ) .......... {sign.name} ..........{" "}
-                            {roleLabel(sign.role)}
+                            {displayRole(sign)}
                           </b>
                         ) : (
                           <b>
                             (ลงชื่อ)
                             ........................................................{" "}
-                            {roleLabel(sign.role)}
+                            {displayRole(sign)}
                           </b>
                         )}
                       </div>

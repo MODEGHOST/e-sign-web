@@ -1,18 +1,31 @@
-/* =======================
-   A4: แสดงบนจอ (Screen)
-   ======================= */
+:root{
+  --page-pad: 20mm;
+  --header-h: 14mm;
+  --after-header-gap: 12mm;
+  --font-size: 16px;
+  --line-height: 1.7;
+}
+
+/* หน้ากระดาษ A4 */
 .a4-page{
   width:210mm;
   min-height:297mm;
   margin:0 auto;
-  padding:20mm;                 /* ใช้กับหน้าเนื้อหาเท่านั้น */
+  padding:0;
   background:#fff;
   color:#000;
-  font-size:16px;
-  line-height:1.7;
+  font-size:var(--font-size);
+  line-height:var(--line-height);
   box-sizing:border-box;
   box-shadow:0 0 10px rgba(0,0,0,.15);
   overflow:hidden;
+}
+
+/* กล่องเนื้อหาภายในหน้า */
+.a4-inner{
+  padding: var(--page-pad);
+  padding-top: calc(var(--page-pad) + var(--after-header-gap));
+  box-sizing:border-box;
 }
 
 /* หน้าปก */
@@ -29,16 +42,13 @@
   object-fit:cover;
 }
 
-/* กล่องเนื้อหา (ทั้งหมดของสัญญาอยู่ในนี้) */
-.contract-body{ position:relative; }
-
-/* แถบหัวที่สคริปต์ paginate แปะให้ทุกหน้าเนื้อหา */
+/* แถบหัวแบบเต็มขอบ */
 .content-header-band{
-  height:14mm;
+  height:var(--header-h);
   background:#222;
   position:relative;
   -webkit-print-color-adjust:exact;
-          print-color-adjust:exact;
+  print-color-adjust:exact;
 }
 .content-header-band::after{
   content:"";
@@ -53,13 +63,26 @@
   background:#fff; opacity:.9;
 }
 
-/* ตัวช่วยขึ้นหน้า/กันโดนตัดครึ่ง */
+/* บัฟเฟอร์บนสำหรับหน้าใหม่ */
+.page-safe-top{
+  padding-top: var(--after-header-gap);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+/* ตัวช่วยตัดหน้าและป้องกันการตัดกลางกล่อง */
 .page-break{ display:block; height:0; }
 .avoid-break{ break-inside:avoid; page-break-inside:avoid; }
+.keep-with-next{ break-after:avoid; }
+.keep-lines,
+.contract-body p,
+.contract-body li{
+  orphans:3;
+  widows:3;
+  break-inside:avoid;
+}
 
-/* ==========================
-   ส่วนลายเซ็น (บนจอ)
-   ========================== */
+/* ลายเซ็น */
 .signature-section{ margin-top:30px; padding:10px; }
 .signature-section .ant-row{ display:flex; justify-content:space-between; }
 .signature-section .ant-col{ flex:1; padding-right:10px; text-align:center; }
@@ -69,9 +92,7 @@
 }
 .signature-section .ant-col>div{ margin:0 auto; }
 
-/* =======================
-   พิมพ์ / Export PDF
-   ======================= */
+/* โหมดพิมพ์ / PDF */
 @media print{
   @page{ size:A4; margin:0; }
 
@@ -80,13 +101,13 @@
 
   .a4-page{
     width:210mm;
-    min-height:297mm;           /* ปล่อยสูงตามเนื้อหา */
+    min-height:297mm;
     height:auto;
-    overflow:visible;           /* สำคัญ: ไม่ให้ส่วนเกินถูกซ่อน */
+    overflow:visible;
     margin:0;
-    padding:20mm;               /* ขอบเนื้อหา A4 */
+    padding:0;
     box-shadow:none;
-    break-after:page;           /* แตกหน้า A4 */
+    break-after:page;
     page-break-after:always;
   }
   .a4-page:last-child{
@@ -94,23 +115,18 @@
     page-break-after:auto;
   }
 
-  /* หน้าปกพอดีแผ่น */
+  .a4-inner{
+    padding: var(--page-pad);
+    padding-top: calc(var(--page-pad) + var(--after-header-gap));
+  }
+
   .a4-cover{
     width:210mm; height:297mm; padding:0 !important; overflow:hidden;
   }
 
-  /* บังคับขึ้นหน้าใหม่ด้วยตัวคั่น */
   .page-break{ break-before:page; page-break-before:always; }
-
-  /* กันองค์ประกอบสำคัญโดนตัด */
-  .avoid-break,
-  .signature-section{
-    break-inside:avoid; page-break-inside:avoid;
-  }
-
-  /* ถ้าขึ้นหน้าใหม่ของ "เนื้อหา" ให้เว้นหัวไว้เล็กน้อย
-     (สคริปต์ paginate จะสร้าง .a4-page ใหม่พร้อม .content-header-band อยู่ข้างบน) */
-  .page-break + .contract-body{ margin-top:25mm; }
+  .avoid-break, .keep-with-next, .keep-lines,
+  .signature-section{ break-inside:avoid; page-break-inside:avoid; }
 
   .no-print{ display:none !important; }
 }

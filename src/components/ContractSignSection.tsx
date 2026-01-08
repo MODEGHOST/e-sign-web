@@ -1,19 +1,43 @@
 // src/components/ContractSignSection.tsx
-import { Upload, Typography, Button, Image } from "antd";
-import { PlusOutlined } from "@ant-design/icons";
+import { Typography, Button } from "antd";
 import SignatureCanvas from "react-signature-canvas";
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState } from "react";
 import { Row, Col } from "reactstrap";
+import companyStamp from "../assets/BBMMUUUU.png";
 
 const { Text } = Typography;
 
-const toImgSrc = (sig?: string) => {
-  if (!sig) return "";
-  return sig.startsWith("data:image") ? sig : `data:image/png;base64,${sig}`;
-};
+const toImgSrc = (sig?: string) =>
+  !sig ? "" : sig.startsWith("data:image") ? sig : `data:image/png;base64,${sig}`;
 
 const isCustomerRole = (role: string) => role.startsWith("customer_");
 const isCompanyRole = (role: string) => role.startsWith("company_");
+
+const roleLabel = (role: string) => {
+  switch (role) {
+    case "company_director":
+      return "กรรมการ (บริษัท)";
+    case "company_witness":
+      return "พยาน (บริษัท)";
+    case "customer_director":
+      return "กรรมการ (ลูกค้า)";
+    case "customer_witness":
+      return "พยาน (ลูกค้า)";
+    default:
+      return role;
+  }
+};
+
+const displayRole = (role: string, position?: string) =>
+  position?.trim() ? position.trim() : roleLabel(role);
+
+const readAsDataUrl = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(new Error("อ่านไฟล์ไม่สำเร็จ"));
+    r.readAsDataURL(file);
+  });
 
 type SignItemProps = {
   role: string;
@@ -39,27 +63,41 @@ function SignItem({
   const sigRef = useRef<SignatureCanvas>(null);
 
   const clearSignature = () => sigRef.current?.clear();
-
   const handleEnd = () => {
-    if (sigRef.current && onSigned) {
-      const dataUrl = sigRef.current.toDataURL();
-      onSigned(dataUrl, role);
-    }
+    if (!sigRef.current || !onSigned) return;
+    onSigned(sigRef.current.toDataURL(), role);
   };
 
-  // FINAL: โชว์รูปอย่างเดียว
+  const boxStyle: React.CSSProperties = {
+    width: "100%",
+    height: mode === "final" ? 90 : 140,
+    border: mode === "final" ? undefined : "2px solid #d9d9d9",
+    background: "#fff",
+    borderRadius: mode === "final" ? undefined : 10,
+    overflow: "hidden",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  };
+
+  const nameLine = (
+    <Text style={{ fontSize: 14 }}>
+      (ลงชื่อ){" "}
+      {inlineName && name ? (
+        <>
+          {".......... "} {name} {" .......... "}
+        </>
+      ) : (
+        <>{"........................................................ "}</>
+      )}{" "}
+      {displayRole(role, position)}
+    </Text>
+  );
+
   if (mode === "final") {
     return (
       <div style={{ marginBottom: 28 }}>
-        <div
-          style={{
-            width: "100%",
-            height: 90,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
+        <div style={boxStyle}>
           {image ? (
             <img
               src={toImgSrc(image)}
@@ -70,43 +108,15 @@ function SignItem({
             <div style={{ width: "100%", height: 90 }} />
           )}
         </div>
-
-        <div style={{ marginTop: 6 }}>
-          <Text style={{ fontSize: 14 }}>
-            (ลงชื่อ){" "}
-            {inlineName && name ? (
-              <>
-                {".......... "} {name} {" .......... "}
-              </>
-            ) : (
-              <>{"........................................................ "}</>
-            )}
-            {role}
-          </Text>
-        </div>
-
-        {position && <div>{position}</div>}
+        <div style={{ marginTop: 6 }}>{nameLine}</div>
       </div>
     );
   }
 
-  // VIEW: อ่านอย่างเดียว (ถ้ามีรูปแสดง, ไม่มีรูปก็เว้นว่าง)
   if (mode === "view") {
     return (
       <div style={{ marginBottom: 40 }}>
-        <div
-          style={{
-            width: "100%",
-            height: 140,
-            border: "2px solid #d9d9d9",
-            background: "#fff",
-            borderRadius: 10,
-            overflow: "hidden",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
+        <div style={boxStyle}>
           {image ? (
             <img
               src={toImgSrc(image)}
@@ -115,47 +125,25 @@ function SignItem({
             />
           ) : null}
         </div>
-
-        <div style={{ marginTop: 10 }}>
-          <Text style={{ fontSize: 14 }}>
-            (ลงชื่อ){" "}
-            {inlineName && name ? (
-              <>
-                {".......... "} {name} {" .......... "}
-              </>
-            ) : (
-              <>{"........................................................ "}</>
-            )}
-            {role}
-          </Text>
-        </div>
-
-        {position && <div>{position}</div>}
+        <div style={{ marginTop: 10 }}>{nameLine}</div>
       </div>
     );
   }
 
-  // EDIT: เซ็นได้ถ้าไม่ถูกล็อก
   return (
     <div style={{ marginBottom: 40 }}>
-      <div
-        style={{
-          width: "100%",
-          height: 140,
-          border: "2px solid #d9d9d9",
-          background: "#fff",
-          borderRadius: 10,
-          overflow: "hidden",
-          boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
-        }}
-      >
+      <div style={{ ...boxStyle, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
         {locked ? (
-          // โหมด edit แต่ locked: แสดงรูปถ้ามี (กันผู้ใช้เซ็น)
           image ? (
             <img
               src={toImgSrc(image)}
               alt={name ?? role}
-              style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "contain",
+                display: "block",
+              }}
             />
           ) : (
             <div style={{ width: "100%", height: "100%", background: "#fff" }} />
@@ -179,26 +167,13 @@ function SignItem({
           flexWrap: "wrap",
         }}
       >
-        <Text style={{ fontSize: 14 }}>
-          (ลงชื่อ){" "}
-          {inlineName && name ? (
-            <>
-              {".......... "} {name} {" .......... "}
-            </>
-          ) : (
-            <>{"........................................................ "}</>
-          )}
-          {role}
-        </Text>
-
+        {nameLine}
         {!locked && (
           <Button size="small" danger onClick={clearSignature}>
             ลบลายเซ็น
           </Button>
         )}
       </div>
-
-      {position && <div>{position}</div>}
     </div>
   );
 }
@@ -212,172 +187,125 @@ type ContractSignSectionProps = {
     image?: string;
     inlineName?: boolean;
   }[];
-  stamp?: string | null;
   mode?: "edit" | "view" | "final";
   onSignedAll?: (signatures: Record<string, string>, stamp?: string | null) => void;
   customerSignatureMap?: Record<string, string>;
-  /** ใครกำลังดู: customer = เห็นเฉพาะช่องลูกค้า, company = เห็นหมด */
   viewFor?: "customer" | "company" | "all";
+
+  customerStamp?: string | null;
+  onCustomerStampChange?: (dataUrl: string | null) => void;
+
+  showSectionStamp?: boolean;
 };
 
 export default function ContractSignSection({
   signatures = [],
-  stamp: defaultStamp = null,
   mode = "edit",
   onSignedAll,
   customerSignatureMap = {},
   viewFor = "all",
+  customerStamp = null,
+  onCustomerStampChange,
+  showSectionStamp = true,
 }: ContractSignSectionProps) {
-  const [stamp, setStamp] = useState<string | null>(defaultStamp);
-  const [previewOpen, setPreviewOpen] = useState(false);
   const [signData, setSignData] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    setStamp(defaultStamp ?? null);
-  }, [defaultStamp]);
-
-  const handleSigned = (dataUrl: string, role: string) => {
-    const newData = { ...signData, [role]: dataUrl };
-    setSignData(newData);
-    onSignedAll?.(newData, stamp);
-  };
-
   const isFinal = mode === "final";
 
-  // กรองลายเซ็นตามผู้ชม
-  const filteredSignatures = signatures.filter((s) => {
-    if (viewFor === "customer") return isCustomerRole(s.role);
-    if (viewFor === "company") return true; // บริษัทเห็นทั้งหมด
-    return true; // all
-  });
+  const canCustomerUploadStamp = viewFor === "customer" && mode === "edit";
+  const showCustomerStampBox = viewFor !== "customer" || mode !== "edit" || canCustomerUploadStamp;
 
-  // ตัดสินใจว่า "ช่องนี้แก้ไขได้ไหม" ตามผู้ชม + โหมด
-  const resolveItemMode = (role: string, baseMode: "edit" | "view" | "final"): "edit" | "view" | "final" => {
-    if (baseMode === "final") return "final"; // ฉบับสุดท้ายอ่านอย่างเดียวทุกคน
+  const handleSigned = (dataUrl: string, role: string) => {
+    const next = { ...signData, [role]: dataUrl };
+    setSignData(next);
 
-    // ถ้าเป็นหน้า edit:
-    if (viewFor === "customer") {
-      // ลูกค้าแก้ได้เฉพาะ customer_*
-      return isCustomerRole(role) ? "edit" : "view";
-    }
-    if (viewFor === "company") {
-      // บริษัทแก้ได้เฉพาะ company_*
-      return isCompanyRole(role) ? "edit" : "view";
-    }
-    // all = ตามปกติ (อนุโลมให้แก้เฉพาะ company_* เป็นดีฟอลต์)
+    const merged = customerStamp ? { ...next, customer_stamp: customerStamp } : next;
+    onSignedAll?.(merged, null);
+  };
+
+  const handleCustomerStampUpload = async (file: File) => {
+    const dataUrl = await readAsDataUrl(file);
+    onCustomerStampChange?.(dataUrl);
+
+    const merged = { ...signData, customer_stamp: dataUrl };
+    onSignedAll?.(merged, null);
+  };
+
+  const filtered = signatures.filter((s) => (viewFor === "customer" ? isCustomerRole(s.role) : true));
+
+  const resolveItemMode = (role: string, base: "edit" | "view" | "final"): "edit" | "view" | "final" => {
+    if (base === "final") return "final";
+    if (viewFor === "customer") return isCustomerRole(role) ? "edit" : "view";
+    if (viewFor === "company") return isCompanyRole(role) ? "edit" : "view";
     return isCompanyRole(role) ? "edit" : "view";
   };
 
-  const isStampVisible = viewFor !== "customer"; // ลูกค้าไม่เห็น/ไม่อัปโหลดตราประทับ
-
   return (
     <div className="signature-section" style={{ marginTop: 40 }}>
-      {isStampVisible && (
-        <Row
-          className="mb-5"
-          style={{ marginBottom: 50, display: "flex", alignItems: "center" }}
-        >
-          <Col md={6}>
-            <Row style={{ display: "flex", alignItems: "center", gap: 20 }}>
-              <Text strong style={{ fontSize: 16, whiteSpace: "nowrap" }}>
-                ตราประทับบริษัท
-              </Text>
+      {showSectionStamp && (
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <Text strong>ตราบริษัท</Text>
+            <img
+              src={companyStamp}
+              alt="ตราประทับบริษัท"
+              style={{ width: 120, opacity: 0.95, transform: "rotate(-2deg)" }}
+            />
+          </div>
 
-              {mode === "edit" ? (
-                <Upload
-                  name="stamp"
-                  listType="picture-circle"
-                  showUploadList={false}
-                  accept="image/*"
-                  beforeUpload={(file) => {
-                    const reader = new FileReader();
-                    reader.onload = () => {
-                      const img = reader.result as string;
-                      setStamp(img);
-                      onSignedAll?.(signData, img);
-                    };
-                    reader.readAsDataURL(file);
-                    return false;
-                  }}
-                  onPreview={() => setPreviewOpen(true)}
-                >
-                  {stamp ? (
-                    <img
-                      src={stamp}
-                      alt="ตราประทับ"
-                      style={{
-                        width: 110,
-                        height: 110,
-                        borderRadius: "50%",
-                        objectFit: "cover",
-                        border: "1px solid #e6f4ff",
-                        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                      }}
-                    />
-                  ) : (
-                    <div
-                      style={{
-                        width: 110,
-                        height: 110,
-                        borderRadius: "50%",
-                        border: "2px dashed #91caff",
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color: "#1677ff",
-                        background: "#f5faff",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <PlusOutlined style={{ fontSize: 22, marginBottom: 4 }} />
-                      <span style={{ fontSize: 13 }}>อัปโหลด</span>
-                    </div>
-                  )}
-                </Upload>
-              ) : stamp ? (
-                <img
-                  src={stamp}
-                  alt="ตราประทับ"
-                  style={{
-                    width: isFinal ? 100 : 120,
-                    height: isFinal ? 100 : 120,
-                    borderRadius: "50%",
-                    objectFit: "cover",
-                    border: "1px solid #e6f4ff",
-                  }}
-                />
+          {showCustomerStampBox && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
+              <Text strong>ตราลูกค้า</Text>
+
+              {canCustomerUploadStamp ? (
+                <label style={{ cursor: "pointer" }}>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    style={{ display: "none" }}
+                    onChange={async (e) => {
+                      const f = e.target.files?.[0];
+                      if (!f) return;
+                      await handleCustomerStampUpload(f);
+                      e.currentTarget.value = "";
+                    }}
+                  />
+                  <span
+                    style={{
+                      padding: "6px 10px",
+                      border: "1px solid #d9d9d9",
+                      borderRadius: 8,
+                      display: "inline-block",
+                    }}
+                  >
+                    อัปโหลดตราลูกค้า
+                  </span>
+                </label>
               ) : null}
 
-              {stamp && (
-                <Image
-                  styles={{ root: { display: "none" } }}
-                  preview={{
-                    open: previewOpen,
-                    onOpenChange: (visible) => setPreviewOpen(visible),
-                  }}
-                  src={stamp}
+              {customerStamp ? (
+                <img
+                  src={customerStamp}
+                  alt="ตราลูกค้า"
+                  style={{ width: 120, opacity: 0.95, transform: "rotate(1deg)" }}
                 />
+              ) : (
+                <span style={{ color: "#999" }}>ยังไม่อัปโหลด</span>
               )}
-            </Row>
-          </Col>
-        </Row>
+            </div>
+          )}
+        </div>
       )}
 
       <Row className="gy-4 gx-4">
-        {filteredSignatures.map((sig) => {
+        {filtered.map((sig) => {
           const mappedImg = customerSignatureMap[sig.role];
           const img = mappedImg || sig.image;
           const isMapped = !!mappedImg;
 
-          // โหมดต่อช่อง: ตาม viewFor + mode ปัจจุบัน
           let itemMode = resolveItemMode(sig.role, mode);
-
-          // ถ้ามีรูปจากฝั่งตรงข้าม map มาแล้ว ให้เป็น view (กันแก้)
           if (itemMode !== "final" && isMapped) itemMode = "view";
 
-          const locked =
-            itemMode !== "edit" || isMapped || isFinal;
+          const locked = itemMode !== "edit" || isMapped || isFinal;
 
           return (
             <Col md={6} key={sig.id}>
@@ -389,9 +317,7 @@ export default function ContractSignSection({
                 image={img}
                 mode={itemMode}
                 locked={locked}
-                onSigned={locked ? undefined : (data, role) => {
-                  handleSigned(data, role);
-                }}
+                onSigned={locked ? undefined : handleSigned}
               />
             </Col>
           );

@@ -7,31 +7,38 @@ import type { ContractConfig } from "../../types/contract";
 export default function DisplayContract() {
   const { documentId } = useParams();
   const [config, setConfig] = useState<ContractConfig | null>(null);
+
   const [signatures, setSignatures] = useState<Record<string, string>>({});
+  const [customerStamp, setCustomerStamp] = useState<string | null>(null); // ✅ เพิ่ม
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (documentId) {
-      setLoading(true);
-      fetch(`http://localhost:4000/api/contracts/${documentId}`)
-        .then((res) => {
-          if (!res.ok) throw new Error("ไม่สามารถดึงข้อมูลสัญญาได้");
-          return res.json();
-        })
-        .then((data) => {
-          setConfig(data.config);
-          setLoading(false);
-        })
-        .catch((err) => {
-          setError(err.message);
-          setLoading(false);
-        });
-    }
+    if (!documentId) return;
+    setLoading(true);
+    fetch(`http://localhost:4000/api/contracts/${documentId}`)
+      .then((res) => {
+        if (!res.ok) throw new Error("ไม่สามารถดึงข้อมูลสัญญาได้");
+        return res.json();
+      })
+      .then((data) => {
+        setConfig(data.config);
+        setLoading(false);
+      })
+      .catch((err) => {
+        setError(err.message);
+        setLoading(false);
+      });
   }, [documentId]);
 
   const handleSubmitSignature = async () => {
-    if (!Object.keys(signatures).length) {
+    const payloadSignatures: Record<string, string> = { ...signatures };
+
+    // ✅ แนบตราลูกค้าไปด้วยใน signatures
+    if (customerStamp) payloadSignatures["customer_stamp"] = customerStamp;
+
+    if (!Object.keys(payloadSignatures).length) {
       message.warning("กรุณาเซ็นก่อนส่งกลับ ❗");
       return;
     }
@@ -42,7 +49,7 @@ export default function DisplayContract() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ signatures }),
+          body: JSON.stringify({ signatures: payloadSignatures }),
         }
       );
 
@@ -62,12 +69,14 @@ export default function DisplayContract() {
 
   return (
     <div style={{ margin: "0 auto", maxWidth: 900 }}>
-      {/* ให้ลูกค้าเซ็นตรงในเอกสารจริง */}
       <ContractRenderer
         config={config}
         mode="edit"
         viewFor="customer"
         onSignedAll={(data) => setSignatures(data)}
+        // ✅ ส่งตัวจัดการตราลูกค้าเข้าไป
+        customerStamp={customerStamp}
+        onCustomerStampChange={setCustomerStamp}
       />
 
       <div style={{ textAlign: "center", marginTop: 24 }}>
