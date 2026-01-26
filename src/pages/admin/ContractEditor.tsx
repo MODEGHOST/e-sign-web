@@ -12,7 +12,7 @@ import {
   Switch,
   Tag,
 } from "antd";
-import { PlusOutlined, UploadOutlined } from "@ant-design/icons";
+import { UploadOutlined } from "@ant-design/icons";
 import ContractRenderer from "../../components/ContractRenderer";
 import ClauseEditor from "../../components/ClauseEditor";
 import { accountingTemplate } from "../../templates/accounting";
@@ -105,7 +105,7 @@ export default function ContractEditor() {
     const savedId = localStorage.getItem("lastDocumentId");
     if (!savedId) return;
 
-    fetch(`http://localhost:4000/api/contracts/${savedId}`)
+    fetch(`${import.meta.env.VITE_API_BASE_URL}/api/contracts/${savedId}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.config) {
@@ -172,7 +172,7 @@ export default function ContractEditor() {
 
   const saveConfig = async () => {
     try {
-      const res = await fetch(`http://localhost:4000/api/contracts`, {
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/contracts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         // ✅ ensure อีกชั้นก่อนส่ง
@@ -191,7 +191,7 @@ export default function ContractEditor() {
   const sendEmail = async () => {
     if (!documentId) return message.warning("กรุณาบันทึกสัญญาก่อน");
 
-    const res = await fetch(`http://localhost:4000/send-sign-email`, {
+    const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/send-sign-email`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, documentId }),

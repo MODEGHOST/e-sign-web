@@ -17,7 +17,7 @@ export default function DisplayContract() {
   useEffect(() => {
     if (!documentId) return;
     setLoading(true);
-    fetch(`http://localhost:4000/api/contracts/${documentId}`)
+    fetch(`${import.meta.env.VITE_API_BASE_URL}/api/contracts/${documentId}`)
       .then((res) => {
         if (!res.ok) throw new Error("ไม่สามารถดึงข้อมูลสัญญาได้");
         return res.json();
@@ -45,7 +45,7 @@ export default function DisplayContract() {
 
     try {
       const res = await fetch(
-        `http://localhost:4000/api/contracts/${documentId}/customer-sign`,
+        `${import.meta.env.VITE_API_BASE_URL}/api/contracts/${documentId}/customer-sign`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

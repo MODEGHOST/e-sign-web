@@ -28,8 +28,8 @@ export default function ViewSignedContract() {
         setLoading(true);
 
         const [contractRes, sigRes] = await Promise.all([
-          fetch(`http://localhost:4000/api/contracts/${documentId}`),
-          fetch(`http://localhost:4000/api/contracts/${documentId}/signatures`),
+          fetch(`${import.meta.env.VITE_API_BASE_URL}/api/contracts/${documentId}`),
+          fetch(`${import.meta.env.VITE_API_BASE_URL}/api/contracts/${documentId}/signatures`),
         ]);
 
         if (!contractRes.ok) throw new Error("ไม่สามารถโหลดข้อมูลสัญญาได้");
