@@ -1,5 +1,5 @@
 // src/pages/admin/ContractEditor.tsx
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Input,
   Button,
@@ -13,14 +13,12 @@ import {
   Tag,
 } from "antd";
 import { UploadOutlined } from "@ant-design/icons";
+import { nanoid } from "nanoid";
+
 import ContractRenderer from "../../components/ContractRenderer";
 import ClauseEditor from "../../components/ClauseEditor";
 import { accountingTemplate } from "../../templates/accounting";
-import type {
-  ContractConfig,
-  Clause,
-  SignatureInfo,
-} from "../../types/contract";
+import type { ContractConfig, Clause, SignatureInfo } from "../../types/contract";
 
 const { Title, Text } = Typography;
 
@@ -55,20 +53,24 @@ const REQUIRED_SIGNATURES: SignatureInfo[] = [
   },
 ];
 
-const ensureSignatures = (cfg: ContractConfig): ContractConfig => {
-  const current = cfg.signatures || [];
-
-  // ถ้ามีครบ 4 แล้วก็ใช้ของเดิม
-  if (current.length === 4) return cfg;
-
-  // ถ้ามีเก่า/ไม่ครบ/มากกว่า ให้ "รีเซ็ตให้เป็นมาตรฐาน 4 ช่อง"
+// กัน template/ข้อมูลจาก backend ที่อาจไม่มี fields บางตัว
+const normalizeConfig = (cfg: ContractConfig): ContractConfig => {
   return {
     ...cfg,
-    signatures: REQUIRED_SIGNATURES.map((s) => ({
-      ...s,
-      // เผื่อมีค่าเดิมที่อยากคงไว้บางส่วน (optional)
-      // ถ้าอยากคง name/position ของเดิม ให้หา match ตาม role แล้วแทนค่าได้
-    })),
+    clauses: Array.isArray(cfg.clauses) ? cfg.clauses : [],
+    signatures: Array.isArray(cfg.signatures) ? cfg.signatures : [],
+  };
+};
+
+const ensureSignatures = (cfg: ContractConfig): ContractConfig => {
+  const safe = normalizeConfig(cfg);
+  const current = safe.signatures || [];
+
+  if (current.length === 4) return safe;
+
+  return {
+    ...safe,
+    signatures: REQUIRED_SIGNATURES.map((s) => ({ ...s })),
   };
 };
 
@@ -88,9 +90,7 @@ const roleLabel = (role: string) => {
 };
 
 const displayRole = (sign: SignatureInfo) =>
-  (sign.position?.trim() || "").length > 0
-    ? sign.position!.trim()
-    : roleLabel(sign.role);
+  (sign.position?.trim() || "").length > 0 ? sign.position!.trim() : roleLabel(sign.role);
 
 export default function ContractEditor() {
   // ✅ ทำให้ template ได้ signatures ครบ 4 ตั้งแต่เริ่ม
@@ -101,85 +101,106 @@ export default function ContractEditor() {
   const [documentId, setDocumentId] = useState<string | null>(null);
   const [email, setEmail] = useState("");
 
+  const apiBase = useMemo(() => {
+    const v = import.meta.env.VITE_API_BASE_URL;
+    return typeof v === "string" ? v.replace(/\/+$/, "") : "";
+  }, []);
+
   useEffect(() => {
     const savedId = localStorage.getItem("lastDocumentId");
     if (!savedId) return;
 
-    fetch(`${import.meta.env.VITE_API_BASE_URL}/api/contracts/${savedId}`)
+    fetch(`${apiBase}/api/contracts/${savedId}`)
       .then((res) => res.json())
       .then((data) => {
-        if (data.config) {
-          // ✅ โหลดแล้ว ensure ให้ครบ 4 ช่องด้วย
+        if (data?.config) {
           setConfig(ensureSignatures(data.config));
           setDocumentId(savedId);
           message.success("โหลดสัญญาล่าสุดเรียบร้อยแล้ว");
         }
       })
       .catch(() => message.error("โหลดสัญญาไม่สำเร็จ"));
-  }, []);
+  }, [apiBase]);
 
   const updateClause = (index: number, updated: Clause) => {
-    const newClauses = [...config.clauses];
-    newClauses[index] = updated;
-    setConfig({ ...config, clauses: newClauses });
+    setConfig((prev) => {
+      const safe = normalizeConfig(prev);
+      const newClauses = [...safe.clauses];
+      newClauses[index] = updated;
+      return { ...safe, clauses: newClauses };
+    });
   };
 
   const deleteClause = (id: string) => {
-    setConfig({
-      ...config,
-      clauses: config.clauses.filter((c) => c.id !== id),
+    setConfig((prev) => {
+      const safe = normalizeConfig(prev);
+      return { ...safe, clauses: safe.clauses.filter((c) => c.id !== id) };
     });
   };
 
   const addTextClause = () => {
-    setConfig({
-      ...config,
-      clauses: [
-        ...config.clauses,
-        { id: crypto.randomUUID(), blocks: [{ type: "text", content: "" }] },
-      ],
+    setConfig((prev) => {
+      const safe = normalizeConfig(prev);
+      return {
+        ...safe,
+        clauses: [
+          ...safe.clauses,
+          { id: nanoid(), blocks: [{ type: "text", content: "" }] },
+        ],
+      };
     });
   };
 
   const addListClause = () => {
-    setConfig({
-      ...config,
-      clauses: [
-        ...config.clauses,
-        { id: crypto.randomUUID(), blocks: [{ type: "list", items: [""] }] },
-      ],
+    setConfig((prev) => {
+      const safe = normalizeConfig(prev);
+      return {
+        ...safe,
+        clauses: [
+          ...safe.clauses,
+          { id: nanoid(), blocks: [{ type: "list", items: [""] }] },
+        ],
+      };
     });
   };
 
-  // ✅ updateSignature รองรับ string | boolean (เพื่อ inlineName)
   const updateSignature = (
     index: number,
     field: keyof SignatureInfo,
     value: string | boolean
   ) => {
-    const newSigns = [...(config.signatures || [])];
-    (newSigns[index] as any)[field] = value;
-    setConfig({ ...config, signatures: newSigns });
+    setConfig((prev) => {
+      const safe = ensureSignatures(prev); // ให้ชัวร์ว่ามี 4 ช่อง
+      const newSigns = [...(safe.signatures || [])];
+      if (!newSigns[index]) return safe;
+
+      (newSigns[index] as any)[field] = value;
+      return { ...safe, signatures: newSigns };
+    });
   };
 
   const handleStampUpload = (file: File) => {
     const reader = new FileReader();
-    reader.onload = () =>
-      setConfig({ ...config, stamp: reader.result as string });
+    reader.onload = () => {
+      setConfig((prev) => ({ ...prev, stamp: reader.result as string }));
+    };
     reader.readAsDataURL(file);
-    return false;
+    return false; // prevent upload
   };
 
   const saveConfig = async () => {
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/contracts`, {
+      const res = await fetch(`${apiBase}/api/contracts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // ✅ ensure อีกชั้นก่อนส่ง
         body: JSON.stringify({ config: ensureSignatures(config) }),
       });
 
       const data = await res.json();
+      if (!res.ok) {
+        return message.error("บันทึกสัญญาล้มเหลว: " + (data?.message || "unknown"));
+      }
+
       setDocumentId(data.documentId);
       localStorage.setItem("lastDocumentId", data.documentId);
       message.success("บันทึกสัญญาเรียบร้อยแล้ว");
@@ -190,16 +211,17 @@ export default function ContractEditor() {
 
   const sendEmail = async () => {
     if (!documentId) return message.warning("กรุณาบันทึกสัญญาก่อน");
+    if (!email.trim()) return message.warning("กรุณากรอกอีเมล");
 
-    const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/send-sign-email`, {
+    const res = await fetch(`${apiBase}/api/send-sign-email`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, documentId }),
+      body: JSON.stringify({ email: email.trim(), documentId }),
     });
 
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     if (res.ok) message.success("ส่งอีเมลเรียบร้อยแล้ว");
-    else message.error("ส่งอีเมลไม่สำเร็จ: " + data.message);
+    else message.error("ส่งอีเมลไม่สำเร็จ: " + (data?.message || "unknown"));
   };
 
   return (
@@ -217,17 +239,13 @@ export default function ContractEditor() {
                   <Input
                     placeholder="ชื่อสัญญา"
                     value={config.title}
-                    onChange={(e) =>
-                      setConfig({ ...config, title: e.target.value })
-                    }
+                    onChange={(e) => setConfig({ ...config, title: e.target.value })}
                   />
                   <Input
                     style={{ marginTop: 8 }}
                     placeholder="วันที่"
                     value={config.date}
-                    onChange={(e) =>
-                      setConfig({ ...config, date: e.target.value })
-                    }
+                    onChange={(e) => setConfig({ ...config, date: e.target.value })}
                   />
                   <Input
                     style={{ marginTop: 8 }}
@@ -260,7 +278,7 @@ export default function ContractEditor() {
               children: (
                 <>
                   <Divider>ข้อสัญญา</Divider>
-                  {config.clauses.map((clause, index) => (
+                  {(config.clauses || []).map((clause, index) => (
                     <ClauseEditor
                       key={clause.id}
                       clause={clause}
@@ -268,6 +286,7 @@ export default function ContractEditor() {
                       onDelete={() => deleteClause(clause.id)}
                     />
                   ))}
+
                   <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                     <Button block onClick={addTextClause}>
                       + เพิ่มข้อแบบข้อความ
@@ -285,11 +304,7 @@ export default function ContractEditor() {
               children: (
                 <>
                   <Divider>ตราประทับ</Divider>
-                  <Upload
-                    accept="image/*"
-                    showUploadList={false}
-                    beforeUpload={handleStampUpload}
-                  >
+                  <Upload accept="image/*" showUploadList={false} beforeUpload={handleStampUpload}>
                     <Button icon={<UploadOutlined />}>อัปโหลดตราประทับ</Button>
                   </Upload>
 
@@ -308,7 +323,7 @@ export default function ContractEditor() {
                   )}
 
                   <Divider>ลายเซ็น (4 ช่องตายตัว)</Divider>
-                  {(config.signatures || []).map((sign, index) => (
+                  {ensureSignatures(config).signatures!.map((sign, index) => (
                     <Card
                       key={sign.id}
                       size="small"
@@ -327,50 +342,36 @@ export default function ContractEditor() {
                           </div>
 
                           <div style={{ display: "flex", gap: 10 }}>
-                            <Text style={{ fontSize: 12, color: "#555" }}>
-                              แสดงชื่อในบรรทัดลงชื่อ
-                            </Text>
+                            <Text style={{ fontSize: 12, color: "#555" }}>แสดงชื่อในบรรทัดลงชื่อ</Text>
                             <Switch
                               checked={!!sign.inlineName}
-                              onChange={(checked) =>
-                                updateSignature(index, "inlineName", checked)
-                              }
+                              onChange={(checked) => updateSignature(index, "inlineName", checked)}
                             />
                           </div>
                         </div>
                       }
                     >
-                      {/* ❌ role ไม่ให้แก้เองแล้ว (กันชนกัน/มั่ว) */}
                       <Input
                         placeholder="ชื่อผู้ลงนาม"
                         value={sign.name}
-                        onChange={(e) =>
-                          updateSignature(index, "name", e.target.value)
-                        }
+                        onChange={(e) => updateSignature(index, "name", e.target.value)}
                       />
                       <Input
                         style={{ marginTop: 6 }}
                         placeholder="ตำแหน่ง"
                         value={sign.position}
-                        onChange={(e) =>
-                          updateSignature(index, "position", e.target.value)
-                        }
+                        onChange={(e) => updateSignature(index, "position", e.target.value)}
                       />
 
-                      <div
-                        style={{ marginTop: 8, fontSize: 12, color: "#777" }}
-                      >
+                      <div style={{ marginTop: 8, fontSize: 12, color: "#777" }}>
                         Preview บรรทัดลงชื่อ:{" "}
                         {sign.inlineName && sign.name ? (
                           <b>
-                            (ลงชื่อ) .......... {sign.name} ..........{" "}
-                            {displayRole(sign)}
+                            (ลงชื่อ) .......... {sign.name} .......... {displayRole(sign)}
                           </b>
                         ) : (
                           <b>
-                            (ลงชื่อ)
-                            ........................................................{" "}
-                            {displayRole(sign)}
+                            (ลงชื่อ) ........................................................ {displayRole(sign)}
                           </b>
                         )}
                       </div>
@@ -396,12 +397,7 @@ export default function ContractEditor() {
                     onChange={(e) => setEmail(e.target.value)}
                   />
 
-                  <Button
-                    block
-                    type="default"
-                    style={{ marginTop: 8 }}
-                    onClick={sendEmail}
-                  >
+                  <Button block type="default" style={{ marginTop: 8 }} onClick={sendEmail}>
                     ส่งอีเมลให้เซ็น
                   </Button>
                 </>
