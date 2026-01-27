@@ -1,39 +1,43 @@
+// CompanySign.tsx
 import { useParams } from "react-router-dom";
-import { useEffect, useState } from "react";
-import { Button, message } from "antd";
+import { useEffect, useMemo, useState } from "react";
+import { Button, Modal, Spin, Typography } from "antd";
 import ContractRenderer from "../../components/ContractRenderer";
 import type { ContractConfig } from "../../types/contract";
 
 type ApiSignature = {
   role: string;
-  signature_image: string; // dataURL: "data:image/png;base64,..."
+  signature_image: string;
 };
 
 export default function CompanySign() {
   const { documentId } = useParams();
 
   const [config, setConfig] = useState<ContractConfig | null>(null);
-
-  // ลายเซ็นที่บริษัทเซ็น (ส่งกลับไป)
   const [companySigned, setCompanySigned] = useState<Record<string, string>>({});
-
-  // ✅ ลายเซ็นลูกค้า: map role -> dataURL
   const [customerSigMap, setCustomerSigMap] = useState<Record<string, string>>(
     {}
   );
 
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+
+  const [modal, contextHolder] = Modal.useModal();
+
+  const apiBase = import.meta.env.VITE_API_BASE_URL as string;
 
   useEffect(() => {
     if (!documentId) return;
+
+    let alive = true;
 
     (async () => {
       try {
         setLoading(true);
 
         const [contractRes, sigRes] = await Promise.all([
-          fetch(`${import.meta.env.VITE_API_BASE_URL}/api/contracts/${documentId}`),
-          fetch(`${import.meta.env.VITE_API_BASE_URL}/api/contracts/${documentId}/signatures`),
+          fetch(`${apiBase}/api/contracts/${documentId}`),
+          fetch(`${apiBase}/api/contracts/${documentId}/signatures`),
         ]);
 
         if (!contractRes.ok) throw new Error("ไม่สามารถดึงข้อมูลสัญญาได้");
@@ -42,59 +46,142 @@ export default function CompanySign() {
         const contractData = await contractRes.json();
         const sigData: { signatures: ApiSignature[] } = await sigRes.json();
 
+        if (!alive) return;
+
         setConfig(contractData.config);
 
-        // ✅ ทำเป็น map role->signature_image
         const map: Record<string, string> = {};
         (sigData.signatures || []).forEach((s) => {
           if (s?.role && s?.signature_image) map[s.role] = s.signature_image;
         });
         setCustomerSigMap(map);
-      } catch (err: any) {
-        console.error("Error:", err);
-        message.error(err?.message || "เกิดข้อผิดพลาด");
+      } catch (e: any) {
+        modal.error({
+          title: "เกิดข้อผิดพลาด",
+          content: e?.message || "ไม่สามารถโหลดข้อมูลได้",
+          okText: "ปิด",
+        });
       } finally {
-        setLoading(false);
+        if (alive) setLoading(false);
       }
     })();
-  }, [documentId]);
+
+    return () => {
+      alive = false;
+    };
+  }, [apiBase, documentId, modal]);
+
+  const canSubmit = useMemo(
+    () => Object.keys(companySigned).length > 0,
+    [companySigned]
+  );
 
   const handleCompanySign = async () => {
-    if (!Object.keys(companySigned).length) {
-      message.warning("กรุณาเซ็นก่อนยืนยัน ❗");
+    if (!documentId) return;
+
+    if (!canSubmit) {
+      modal.warning({
+        title: "ยังไม่ได้เซ็น",
+        content: "กรุณาเซ็นให้ครบก่อน แล้วค่อยกด “บริษัทเซ็นและยืนยัน”",
+        okText: "เข้าใจแล้ว",
+      });
       return;
     }
 
-    try {
-      const res = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/api/contracts/${documentId}/company-sign`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ signatures: companySigned }),
-        }
-      );
+    const confirmed = await new Promise<boolean>((resolve) => {
+      modal.confirm({
+        title: "ยืนยันการเซ็นเอกสาร",
+        content: "หลังยืนยัน ระบบจะบันทึกและส่งเอกสาร (PDF) ให้ผู้เกี่ยวข้อง",
+        okText: "ยืนยันเซ็น",
+        cancelText: "ยกเลิก",
+        onOk: () => resolve(true),
+        onCancel: () => resolve(false),
+      });
+    });
 
-      if (res.ok) message.success("บริษัทเซ็นเอกสารสำเร็จ ✅");
-      else message.error("เซ็นเอกสารไม่สำเร็จ ❌");
+    if (!confirmed) return;
+
+    const loadingRef = modal.info({
+      title: "กำลังส่งข้อมูล...",
+      content: "กรุณารอสักครู่ ระบบกำลังบันทึกการเซ็นของบริษัท",
+      okButtonProps: { style: { display: "none" } },
+      maskClosable: false,
+      closable: false,
+    });
+
+    setSubmitting(true);
+
+    try {
+      const res = await fetch(`${apiBase}/api/contracts/${documentId}/company-sign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signatures: companySigned }),
+      });
+
+      loadingRef.destroy();
+
+      if (res.ok) {
+        modal.success({
+          title: "สำเร็จ ✅",
+          content: "บริษัทเซ็นเอกสารเรียบร้อยแล้ว",
+          okText: "ปิด",
+        });
+        return;
+      }
+
+      let msg = "เซ็นเอกสารไม่สำเร็จ ❌";
+      try {
+        const j = await res.json();
+        msg = j?.message || msg;
+      } catch {}
+
+      modal.error({
+        title: "ไม่สำเร็จ",
+        content: msg,
+        okText: "ปิด",
+      });
     } catch {
-      message.error("เกิดข้อผิดพลาดระหว่างส่งข้อมูล");
+      loadingRef.destroy();
+      modal.error({
+        title: "เกิดข้อผิดพลาด",
+        content: "ไม่สามารถส่งข้อมูลได้ กรุณาลองใหม่",
+        okText: "ปิด",
+      });
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  if (loading || !config) return <div>กำลังโหลดเอกสาร...</div>;
+  if (loading || !config) {
+    return (
+      <div style={{ padding: 24, textAlign: "center" }}>
+        {contextHolder}
+        <Spin />
+        <div style={{ marginTop: 10 }}>
+          <Typography.Text>กำลังโหลดเอกสาร...</Typography.Text>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto" }}>
+      {contextHolder}
+
       <ContractRenderer
         config={config}
-        mode="edit" // บริษัทต้องเซ็นได้
+        mode="edit"
         onSignedAll={(data) => setCompanySigned(data)}
-        customerSignatureMap={customerSigMap} // ✅ ส่งเป็น map
+        customerSignatureMap={customerSigMap}
       />
 
       <div style={{ textAlign: "center", marginTop: 24 }}>
-        <Button type="primary" onClick={handleCompanySign}>
+        <Button
+          type="primary"
+          onClick={handleCompanySign}
+          loading={submitting}
+          disabled={submitting}
+        >
           🏢 บริษัทเซ็นและยืนยัน
         </Button>
       </div>

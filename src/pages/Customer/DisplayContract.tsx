@@ -1,11 +1,13 @@
+// DisplayContract.tsx
 import { useParams } from "react-router-dom";
-import { useState, useEffect } from "react";
-import { Button, message } from "antd";
+import { useEffect, useMemo, useState } from "react";
+import { Button, Modal, Spin, Typography } from "antd";
 import ContractRenderer from "../../components/ContractRenderer";
 import type { ContractConfig } from "../../types/contract";
 
 export default function DisplayContract() {
   const { documentId } = useParams();
+
   const [config, setConfig] = useState<ContractConfig | null>(null);
   const [status, setStatus] = useState<string>("PENDING");
 
@@ -13,37 +15,50 @@ export default function DisplayContract() {
   const [customerStamp, setCustomerStamp] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // ✅ เพิ่มสถานะส่ง
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
+  const [modal, contextHolder] = Modal.useModal();
+
+  const apiBase = import.meta.env.VITE_API_BASE_URL as string;
+
   useEffect(() => {
     if (!documentId) return;
-    setLoading(true);
 
-    fetch(`${import.meta.env.VITE_API_BASE_URL}/api/contracts/${documentId}`)
-      .then((res) => {
+    let alive = true;
+
+    (async () => {
+      try {
+        setLoading(true);
+
+        const res = await fetch(`${apiBase}/api/contracts/${documentId}`);
         if (!res.ok) throw new Error("ไม่สามารถดึงข้อมูลสัญญาได้");
-        return res.json();
-      })
-      .then((data) => {
+
+        const data = await res.json();
+        if (!alive) return;
+
         setConfig(data.config);
         setStatus(data.status || "PENDING");
 
-        // ✅ ล็อกจริงจาก backend (รีเฟรชก็ยังล็อก)
-        const locked =
-          data.status === "CUSTOMER_SIGNED" || data.status === "COMPLETED";
+        const locked = data.status === "CUSTOMER_SIGNED" || data.status === "COMPLETED";
         setSubmitted(locked);
+      } catch (e: any) {
+        modal.error({
+          title: "เกิดข้อผิดพลาด",
+          content: e?.message || "ไม่สามารถโหลดข้อมูลได้",
+          okText: "ปิด",
+        });
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
 
-        setLoading(false);
-      })
-      .catch((err) => {
-        setError(err.message);
-        setLoading(false);
-      });
-  }, [documentId]);
+    return () => {
+      alive = false;
+    };
+  }, [apiBase, documentId, modal]);
+
+  const readOnly = useMemo(() => submitting || submitted, [submitting, submitted]);
 
   const handleSubmitSignature = async () => {
     if (!documentId) return;
@@ -53,57 +68,116 @@ export default function DisplayContract() {
     if (customerStamp) payloadSignatures["customer_stamp"] = customerStamp;
 
     if (!Object.keys(payloadSignatures).length) {
-      message.warning("กรุณาเซ็นก่อนส่งกลับ ❗");
+      modal.warning({
+        title: "ยังไม่ได้เซ็น",
+        content: "กรุณาเซ็นก่อนส่งกลับบริษัท",
+        okText: "เข้าใจแล้ว",
+      });
       return;
     }
 
-    // ✅ แจ้ง “กำลังส่ง...” ค้างไว้
-    const hide = message.loading("กำลังส่งลายเซ็น...", 0);
+    const confirmed = await new Promise<boolean>((resolve) => {
+      modal.confirm({
+        title: "ยืนยันการส่งลายเซ็น",
+        content: "หลังยืนยัน หน้านี้จะถูกล็อกและไม่สามารถแก้ไขลายเซ็นได้",
+        okText: "ยืนยันส่ง",
+        cancelText: "ยกเลิก",
+        onOk: () => resolve(true),
+        onCancel: () => resolve(false),
+      });
+    });
+
+    if (!confirmed) return;
+
+    const loadingRef = modal.info({
+      title: "กำลังส่งลายเซ็น...",
+      content: "กรุณารอสักครู่ ระบบกำลังบันทึกข้อมูล",
+      okButtonProps: { style: { display: "none" } },
+      maskClosable: false,
+      closable: false,
+    });
+
+    setSubmitting(true);
 
     try {
-      setSubmitting(true);
+      const res = await fetch(`${apiBase}/api/contracts/${documentId}/customer-sign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signatures: payloadSignatures }),
+      });
 
-      const res = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/api/contracts/${documentId}/customer-sign`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ signatures: payloadSignatures }),
-        }
-      );
-
-      hide();
+      loadingRef.destroy();
 
       if (res.ok) {
-        message.success("ส่งลายเซ็นกลับสำเร็จ ✅");
+        modal.success({
+          title: "สำเร็จ ✅",
+          content: "ส่งลายเซ็นกลับเรียบร้อยแล้ว",
+          okText: "ปิด",
+        });
         setSubmitted(true);
         setStatus("CUSTOMER_SIGNED");
-      } else if (res.status === 409) {
-        // ✅ เคยส่งแล้วก็ล็อกเหมือนกัน
-        message.info("เอกสารนี้ถูกส่งลายเซ็นไปแล้ว ✅");
-        setSubmitted(true);
-        setStatus("CUSTOMER_SIGNED");
-      } else {
-        message.error("ส่งลายเซ็นไม่สำเร็จ ❌");
+        return;
       }
+
+      if (res.status === 409) {
+        modal.info({
+          title: "ส่งไปแล้ว ✅",
+          content: "เอกสารนี้ถูกส่งลายเซ็นไปแล้ว ระบบจะล็อกหน้านี้ให้",
+          okText: "ปิด",
+        });
+        setSubmitted(true);
+        setStatus("CUSTOMER_SIGNED");
+        return;
+      }
+
+      let msg = "ส่งลายเซ็นไม่สำเร็จ ❌";
+      try {
+        const j = await res.json();
+        msg = j?.message || msg;
+      } catch {}
+
+      modal.error({
+        title: "ไม่สำเร็จ",
+        content: msg,
+        okText: "ปิด",
+      });
     } catch {
-      hide();
-      message.error("เกิดข้อผิดพลาดระหว่างส่งข้อมูล");
+      loadingRef.destroy();
+      modal.error({
+        title: "เกิดข้อผิดพลาด",
+        content: "ไม่สามารถส่งข้อมูลได้ กรุณาลองใหม่",
+        okText: "ปิด",
+      });
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (loading) return <div>กำลังโหลดเอกสาร...</div>;
-  if (error) return <div>เกิดข้อผิดพลาด: {error}</div>;
-  if (!config) return null;
+  if (loading) {
+    return (
+      <div style={{ padding: 24, textAlign: "center" }}>
+        {contextHolder}
+        <Spin />
+        <div style={{ marginTop: 10 }}>
+          <Typography.Text>กำลังโหลดเอกสาร...</Typography.Text>
+        </div>
+      </div>
+    );
+  }
 
-  // ✅ ตอนกำลังส่ง หรือส่งแล้ว => ห้ามแก้/ห้ามกด
-  const readOnly = submitting || submitted;
+  if (!config) {
+    return (
+      <div style={{ padding: 24, textAlign: "center" }}>
+        {contextHolder}
+        <Typography.Text>ไม่พบข้อมูลเอกสาร</Typography.Text>
+      </div>
+    );
+  }
 
   return (
     <div style={{ margin: "0 auto", maxWidth: 900, position: "relative" }}>
-      {/* ✅ กันผู้ใช้คลิก/แก้ไขทั้งหน้า */}
+      {contextHolder}
+
       {readOnly && (
         <div
           style={{
@@ -141,10 +215,9 @@ export default function DisplayContract() {
             {submitted ? "✅ ส่งกลับเรียบร้อยแล้ว" : "📩 ยืนยันและส่งกลับบริษัท"}
           </Button>
 
-          {/* (ไม่จำเป็น แต่ช่วยผู้ใช้) */}
           {submitted && (
             <div style={{ marginTop: 10, opacity: 0.75 }}>
-              สถานะ: {status} — หน้านี้ถูกล็อกแล้ว
+              สถานะ: {status}
             </div>
           )}
         </div>
