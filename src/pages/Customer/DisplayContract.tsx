@@ -7,16 +7,22 @@ import type { ContractConfig } from "../../types/contract";
 export default function DisplayContract() {
   const { documentId } = useParams();
   const [config, setConfig] = useState<ContractConfig | null>(null);
+  const [status, setStatus] = useState<string>("PENDING");
 
   const [signatures, setSignatures] = useState<Record<string, string>>({});
-  const [customerStamp, setCustomerStamp] = useState<string | null>(null); // ✅ เพิ่ม
+  const [customerStamp, setCustomerStamp] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // ✅ เพิ่มสถานะส่ง
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+
   useEffect(() => {
     if (!documentId) return;
     setLoading(true);
+
     fetch(`${import.meta.env.VITE_API_BASE_URL}/api/contracts/${documentId}`)
       .then((res) => {
         if (!res.ok) throw new Error("ไม่สามารถดึงข้อมูลสัญญาได้");
@@ -24,6 +30,13 @@ export default function DisplayContract() {
       })
       .then((data) => {
         setConfig(data.config);
+        setStatus(data.status || "PENDING");
+
+        // ✅ ล็อกจริงจาก backend (รีเฟรชก็ยังล็อก)
+        const locked =
+          data.status === "CUSTOMER_SIGNED" || data.status === "COMPLETED";
+        setSubmitted(locked);
+
         setLoading(false);
       })
       .catch((err) => {
@@ -33,9 +46,10 @@ export default function DisplayContract() {
   }, [documentId]);
 
   const handleSubmitSignature = async () => {
-    const payloadSignatures: Record<string, string> = { ...signatures };
+    if (!documentId) return;
+    if (submitting || submitted) return;
 
-    // ✅ แนบตราลูกค้าไปด้วยใน signatures
+    const payloadSignatures: Record<string, string> = { ...signatures };
     if (customerStamp) payloadSignatures["customer_stamp"] = customerStamp;
 
     if (!Object.keys(payloadSignatures).length) {
@@ -43,7 +57,12 @@ export default function DisplayContract() {
       return;
     }
 
+    // ✅ แจ้ง “กำลังส่ง...” ค้างไว้
+    const hide = message.loading("กำลังส่งลายเซ็น...", 0);
+
     try {
+      setSubmitting(true);
+
       const res = await fetch(
         `${import.meta.env.VITE_API_BASE_URL}/api/contracts/${documentId}/customer-sign`,
         {
@@ -53,13 +72,25 @@ export default function DisplayContract() {
         }
       );
 
+      hide();
+
       if (res.ok) {
         message.success("ส่งลายเซ็นกลับสำเร็จ ✅");
+        setSubmitted(true);
+        setStatus("CUSTOMER_SIGNED");
+      } else if (res.status === 409) {
+        // ✅ เคยส่งแล้วก็ล็อกเหมือนกัน
+        message.info("เอกสารนี้ถูกส่งลายเซ็นไปแล้ว ✅");
+        setSubmitted(true);
+        setStatus("CUSTOMER_SIGNED");
       } else {
         message.error("ส่งลายเซ็นไม่สำเร็จ ❌");
       }
     } catch {
+      hide();
       message.error("เกิดข้อผิดพลาดระหว่างส่งข้อมูล");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -67,21 +98,56 @@ export default function DisplayContract() {
   if (error) return <div>เกิดข้อผิดพลาด: {error}</div>;
   if (!config) return null;
 
-  return (
-    <div style={{ margin: "0 auto", maxWidth: 900 }}>
-      <ContractRenderer
-        config={config}
-        mode="edit"
-        viewFor="customer"
-        onSignedAll={(data) => setSignatures(data)}
-        customerStamp={customerStamp}
-        onCustomerStampChange={setCustomerStamp}
-      />
+  // ✅ ตอนกำลังส่ง หรือส่งแล้ว => ห้ามแก้/ห้ามกด
+  const readOnly = submitting || submitted;
 
-      <div style={{ textAlign: "center", marginTop: 24 }}>
-        <Button type="primary" onClick={handleSubmitSignature}>
-          📩 ยืนยันและส่งกลับบริษัท
-        </Button>
+  return (
+    <div style={{ margin: "0 auto", maxWidth: 900, position: "relative" }}>
+      {/* ✅ กันผู้ใช้คลิก/แก้ไขทั้งหน้า */}
+      {readOnly && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "rgba(255,255,255,0.55)",
+            zIndex: 10,
+          }}
+        />
+      )}
+
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <ContractRenderer
+          config={config}
+          mode={readOnly ? "view" : "edit"}
+          viewFor="customer"
+          onSignedAll={(data) => {
+            if (readOnly) return;
+            setSignatures(data);
+          }}
+          customerStamp={customerStamp}
+          onCustomerStampChange={(v) => {
+            if (readOnly) return;
+            setCustomerStamp(v);
+          }}
+        />
+
+        <div style={{ textAlign: "center", marginTop: 24 }}>
+          <Button
+            type="primary"
+            onClick={handleSubmitSignature}
+            loading={submitting}
+            disabled={readOnly}
+          >
+            {submitted ? "✅ ส่งกลับเรียบร้อยแล้ว" : "📩 ยืนยันและส่งกลับบริษัท"}
+          </Button>
+
+          {/* (ไม่จำเป็น แต่ช่วยผู้ใช้) */}
+          {submitted && (
+            <div style={{ marginTop: 10, opacity: 0.75 }}>
+              สถานะ: {status} — หน้านี้ถูกล็อกแล้ว
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
