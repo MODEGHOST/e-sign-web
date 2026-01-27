@@ -1,7 +1,8 @@
 :root{
-  --page-pad: 20mm;
+  /* ✅ SCREEN (ดูบนเว็บ) */
+  --page-pad: 12mm;        /* เดิม 18mm -> ลดให้ไม่โล่ง */
   --header-h: 14mm;
-  --after-header-gap: 12mm;
+  --after-header-gap: 3mm; /* 2mm ก็ได้ แต่ 3mm ดูหายใจนิดนึง */
   --font-size: 16px;
   --line-height: 1.7;
 }
@@ -24,7 +25,6 @@
 /* กล่องเนื้อหาภายในหน้า */
 .a4-inner{
   padding: var(--page-pad);
-  padding-top: calc(var(--page-pad) + var(--after-header-gap));
   box-sizing:border-box;
 }
 
@@ -63,11 +63,18 @@
   background:#fff; opacity:.9;
 }
 
-/* บัฟเฟอร์บนสำหรับหน้าใหม่ */
+/* เว้นระยะใต้หัว “ชั้นเดียว” */
 .page-safe-top{
   padding-top: var(--after-header-gap);
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
+}
+
+/* กันย่อหน้าแรกชนหัวเกินไป + ให้ดูเนียน */
+.contract-body h1,
+.contract-body h2,
+.contract-body h3{
+  margin-top: 0;
 }
 
 /* ตัวช่วยตัดหน้าและป้องกันการตัดกลางกล่อง */
@@ -83,7 +90,7 @@
 }
 
 /* ลายเซ็น */
-.signature-section{ margin-top:30px; padding:10px; }
+.signature-section{ margin-top:20px; padding:10px; }
 .signature-section .ant-row{ display:flex; justify-content:space-between; }
 .signature-section .ant-col{ flex:1; padding-right:10px; text-align:center; }
 .signature-section .ant-col:last-child{ padding-right:0; }
@@ -92,9 +99,14 @@
 }
 .signature-section .ant-col>div{ margin:0 auto; }
 
-/* โหมดพิมพ์ / PDF */
+/* ✅ PRINT / PDF : กลับไปใช้ margin มาตรฐานเพื่อพิมพ์สวย */
 @media print{
   @page{ size:A4; margin:0; }
+
+  :root{
+    --page-pad: 18mm;        /* ✅ print ให้สวยอ่านง่าย */
+    --after-header-gap: 6mm; /* print เผื่อหัวหายใจนิด */
+  }
 
   html,body{ height:auto; margin:0; }
   body{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
@@ -115,10 +127,7 @@
     page-break-after:auto;
   }
 
-  .a4-inner{
-    padding: var(--page-pad);
-    padding-top: calc(var(--page-pad) + var(--after-header-gap));
-  }
+  .a4-inner{ padding: var(--page-pad); }
 
   .a4-cover{
     width:210mm; height:297mm; padding:0 !important; overflow:hidden;

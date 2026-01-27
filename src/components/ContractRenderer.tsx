@@ -49,14 +49,14 @@ export default function ContractRenderer({
         <div
           style={{
             position: "absolute",
-            top: "46%", 
+            top: "46%",
             left: "50%",
-            transform: "translate(-50%, -50%)", 
+            transform: "translate(-50%, -50%)",
             textAlign: "center",
-            color: "#ff5e00", 
-            fontSize: "30px", 
-            fontWeight: "bold", 
-            fontFamily: "'Prompt', sans-serif", 
+            color: "#ff5e00",
+            fontSize: "30px",
+            fontWeight: "bold",
+            fontFamily: "'Prompt', sans-serif",
           }}
         >
           <span>
@@ -74,16 +74,10 @@ export default function ContractRenderer({
             <Watermark height={30} width={140} image={bmuOpacity}>
               <div className="contract-body">
                 <div className="avoid-break">
-                  <Title level={3} style={{ textAlign: "center" }}>
+                  <Title level={3} style={{ textAlign: "center", margin: "0 0 8px" }}>
                     {config.title}
                   </Title>
-                  <Paragraph
-                    style={{
-                      textAlign: "right",
-                      marginBottom: 30,
-                      marginTop: 30,
-                    }}
-                  >
+                  <Paragraph style={{ textAlign: "right", margin: "0 0 14px" }}>
                     สัญญาจัดทำขึ้น ณ วันที่ {config.date}
                   </Paragraph>
                 </div>

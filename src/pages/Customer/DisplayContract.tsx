@@ -74,7 +74,6 @@ export default function DisplayContract() {
         mode="edit"
         viewFor="customer"
         onSignedAll={(data) => setSignatures(data)}
-        // ✅ ส่งตัวจัดการตราลูกค้าเข้าไป
         customerStamp={customerStamp}
         onCustomerStampChange={setCustomerStamp}
       />
