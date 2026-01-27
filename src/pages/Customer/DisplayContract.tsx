@@ -47,6 +47,7 @@ export default function DisplayContract() {
           title: "เกิดข้อผิดพลาด",
           content: e?.message || "ไม่สามารถโหลดข้อมูลได้",
           okText: "ปิด",
+          centered: true,
         });
       } finally {
         if (alive) setLoading(false);
@@ -56,7 +57,7 @@ export default function DisplayContract() {
     return () => {
       alive = false;
     };
-  }, [apiBase, documentId, modal]);
+  }, [apiBase, documentId]);
 
   const readOnly = useMemo(() => submitting || submitted, [submitting, submitted]);
 
@@ -72,6 +73,7 @@ export default function DisplayContract() {
         title: "ยังไม่ได้เซ็น",
         content: "กรุณาเซ็นก่อนส่งกลับบริษัท",
         okText: "เข้าใจแล้ว",
+        centered: true,
       });
       return;
     }
@@ -84,6 +86,7 @@ export default function DisplayContract() {
         cancelText: "ยกเลิก",
         onOk: () => resolve(true),
         onCancel: () => resolve(false),
+        centered: true,
       });
     });
 
@@ -95,6 +98,7 @@ export default function DisplayContract() {
       okButtonProps: { style: { display: "none" } },
       maskClosable: false,
       closable: false,
+      centered: true,
     });
 
     setSubmitting(true);
@@ -113,6 +117,7 @@ export default function DisplayContract() {
           title: "สำเร็จ ✅",
           content: "ส่งลายเซ็นกลับเรียบร้อยแล้ว",
           okText: "ปิด",
+          centered: true,
         });
         setSubmitted(true);
         setStatus("CUSTOMER_SIGNED");
@@ -124,6 +129,7 @@ export default function DisplayContract() {
           title: "ส่งไปแล้ว ✅",
           content: "เอกสารนี้ถูกส่งลายเซ็นไปแล้ว ระบบจะล็อกหน้านี้ให้",
           okText: "ปิด",
+          centered: true,
         });
         setSubmitted(true);
         setStatus("CUSTOMER_SIGNED");
@@ -140,6 +146,7 @@ export default function DisplayContract() {
         title: "ไม่สำเร็จ",
         content: msg,
         okText: "ปิด",
+        centered: true,
       });
     } catch {
       loadingRef.destroy();
@@ -147,6 +154,7 @@ export default function DisplayContract() {
         title: "เกิดข้อผิดพลาด",
         content: "ไม่สามารถส่งข้อมูลได้ กรุณาลองใหม่",
         okText: "ปิด",
+        centered: true,
       });
     } finally {
       setSubmitting(false);

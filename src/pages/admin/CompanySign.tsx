@@ -14,9 +14,11 @@ export default function CompanySign() {
   const { documentId } = useParams();
 
   const [config, setConfig] = useState<ContractConfig | null>(null);
-  const [companySigned, setCompanySigned] = useState<Record<string, string>>({});
+  const [companySigned, setCompanySigned] = useState<Record<string, string>>(
+    {},
+  );
   const [customerSigMap, setCustomerSigMap] = useState<Record<string, string>>(
-    {}
+    {},
   );
 
   const [loading, setLoading] = useState(true);
@@ -60,6 +62,7 @@ export default function CompanySign() {
           title: "เกิดข้อผิดพลาด",
           content: e?.message || "ไม่สามารถโหลดข้อมูลได้",
           okText: "ปิด",
+          centered: true,
         });
       } finally {
         if (alive) setLoading(false);
@@ -73,7 +76,7 @@ export default function CompanySign() {
 
   const canSubmit = useMemo(
     () => Object.keys(companySigned).length > 0,
-    [companySigned]
+    [companySigned],
   );
 
   const handleCompanySign = async () => {
@@ -84,6 +87,7 @@ export default function CompanySign() {
         title: "ยังไม่ได้เซ็น",
         content: "กรุณาเซ็นให้ครบก่อน แล้วค่อยกด “บริษัทเซ็นและยืนยัน”",
         okText: "เข้าใจแล้ว",
+        centered: true,
       });
       return;
     }
@@ -94,6 +98,7 @@ export default function CompanySign() {
         content: "หลังยืนยัน ระบบจะบันทึกและส่งเอกสาร (PDF) ให้ผู้เกี่ยวข้อง",
         okText: "ยืนยันเซ็น",
         cancelText: "ยกเลิก",
+        centered: true,
         onOk: () => resolve(true),
         onCancel: () => resolve(false),
       });
@@ -105,6 +110,7 @@ export default function CompanySign() {
       title: "กำลังส่งข้อมูล...",
       content: "กรุณารอสักครู่ ระบบกำลังบันทึกการเซ็นของบริษัท",
       okButtonProps: { style: { display: "none" } },
+      centered: true,
       maskClosable: false,
       closable: false,
     });
@@ -112,11 +118,14 @@ export default function CompanySign() {
     setSubmitting(true);
 
     try {
-      const res = await fetch(`${apiBase}/api/contracts/${documentId}/company-sign`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ signatures: companySigned }),
-      });
+      const res = await fetch(
+        `${apiBase}/api/contracts/${documentId}/company-sign`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ signatures: companySigned }),
+        },
+      );
 
       loadingRef.destroy();
 
@@ -125,6 +134,7 @@ export default function CompanySign() {
           title: "สำเร็จ ✅",
           content: "บริษัทเซ็นเอกสารเรียบร้อยแล้ว",
           okText: "ปิด",
+          centered: true,
         });
         return;
       }
@@ -139,6 +149,7 @@ export default function CompanySign() {
         title: "ไม่สำเร็จ",
         content: msg,
         okText: "ปิด",
+        centered: true,
       });
     } catch {
       loadingRef.destroy();
@@ -146,6 +157,7 @@ export default function CompanySign() {
         title: "เกิดข้อผิดพลาด",
         content: "ไม่สามารถส่งข้อมูลได้ กรุณาลองใหม่",
         okText: "ปิด",
+        centered: true,
       });
     } finally {
       setSubmitting(false);
