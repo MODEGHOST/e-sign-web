@@ -1,31 +1,27 @@
-// CompanySign.tsx
 import { useParams } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { Button, Modal, Spin, Typography } from "antd";
 import ContractRenderer from "../../components/ContractRenderer";
 import type { ContractConfig } from "../../types/contract";
 
-type ApiSignature = {
-  role: string;
-  signature_image: string;
-};
+type ApiSignature = { role: string; signature_image: string };
 
 export default function CompanySign() {
   const { documentId } = useParams();
 
   const [config, setConfig] = useState<ContractConfig | null>(null);
-  const [companySigned, setCompanySigned] = useState<Record<string, string>>(
-    {},
-  );
+  const [status, setStatus] = useState<string>("PENDING");
+
+  const [companySigned, setCompanySigned] = useState<Record<string, string>>({});
   const [customerSigMap, setCustomerSigMap] = useState<Record<string, string>>(
-    {},
+    {}
   );
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   const [modal, contextHolder] = Modal.useModal();
-
   const apiBase = import.meta.env.VITE_API_BASE_URL as string;
 
   useEffect(() => {
@@ -51,6 +47,12 @@ export default function CompanySign() {
         if (!alive) return;
 
         setConfig(contractData.config);
+        setStatus(contractData.status || "PENDING");
+
+        const locked =
+          contractData.status === "COMPLETED" ||
+          contractData.status === "COMPANY_SIGNED";
+        setSubmitted(locked);
 
         const map: Record<string, string> = {};
         (sigData.signatures || []).forEach((s) => {
@@ -72,15 +74,21 @@ export default function CompanySign() {
     return () => {
       alive = false;
     };
-  }, [apiBase, documentId, modal]);
+  }, [apiBase, documentId]);
+
+  const readOnly = useMemo(
+    () => submitting || submitted,
+    [submitting, submitted]
+  );
 
   const canSubmit = useMemo(
     () => Object.keys(companySigned).length > 0,
-    [companySigned],
+    [companySigned]
   );
 
   const handleCompanySign = async () => {
     if (!documentId) return;
+    if (readOnly) return;
 
     if (!canSubmit) {
       modal.warning({
@@ -95,7 +103,7 @@ export default function CompanySign() {
     const confirmed = await new Promise<boolean>((resolve) => {
       modal.confirm({
         title: "ยืนยันการเซ็นเอกสาร",
-        content: "หลังยืนยัน ระบบจะบันทึกและส่งเอกสาร (PDF) ให้ผู้เกี่ยวข้อง",
+        content: "หลังยืนยัน หน้านี้จะถูกล็อก และระบบจะส่ง PDF ให้ผู้เกี่ยวข้อง",
         okText: "ยืนยันเซ็น",
         cancelText: "ยกเลิก",
         centered: true,
@@ -103,7 +111,6 @@ export default function CompanySign() {
         onCancel: () => resolve(false),
       });
     });
-
     if (!confirmed) return;
 
     const loadingRef = modal.info({
@@ -124,7 +131,7 @@ export default function CompanySign() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ signatures: companySigned }),
-        },
+        }
       );
 
       loadingRef.destroy();
@@ -132,10 +139,13 @@ export default function CompanySign() {
       if (res.ok) {
         modal.success({
           title: "สำเร็จ ✅",
-          content: "บริษัทเซ็นเอกสารเรียบร้อยแล้ว",
+          content: "บริษัทเซ็นเอกสารเรียบร้อยแล้ว หน้านี้ถูกล็อกแล้ว",
           okText: "ปิด",
           centered: true,
         });
+
+        setSubmitted(true);
+        setStatus("COMPLETED");
         return;
       }
 
@@ -177,25 +187,45 @@ export default function CompanySign() {
   }
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto" }}>
+    <div style={{ maxWidth: 900, margin: "0 auto", position: "relative" }}>
       {contextHolder}
 
-      <ContractRenderer
-        config={config}
-        mode="edit"
-        onSignedAll={(data) => setCompanySigned(data)}
-        customerSignatureMap={customerSigMap}
-      />
+      {readOnly && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "rgba(255,255,255,0.55)",
+            zIndex: 10,
+          }}
+        />
+      )}
 
-      <div style={{ textAlign: "center", marginTop: 24 }}>
-        <Button
-          type="primary"
-          onClick={handleCompanySign}
-          loading={submitting}
-          disabled={submitting}
-        >
-          🏢 บริษัทเซ็นและยืนยัน
-        </Button>
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <ContractRenderer
+          config={config}
+          mode={readOnly ? "view" : "edit"}
+          onSignedAll={(data) => {
+            if (readOnly) return;
+            setCompanySigned(data);
+          }}
+          customerSignatureMap={customerSigMap}
+        />
+
+        <div style={{ textAlign: "center", marginTop: 24 }}>
+          <Button
+            type="primary"
+            onClick={handleCompanySign}
+            loading={submitting}
+            disabled={readOnly}
+          >
+            {submitted ? "✅ บริษัทเซ็นเรียบร้อยแล้ว" : "🏢 บริษัทเซ็นและยืนยัน"}
+          </Button>
+
+          {submitted && (
+            <div style={{ marginTop: 10, opacity: 0.75 }}>สถานะ: {status}</div>
+          )}
+        </div>
       </div>
     </div>
   );
