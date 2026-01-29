@@ -14,18 +14,16 @@ import {
   Space,
   Alert,
   Tooltip,
+  DatePicker,
 } from "antd";
 import { UploadOutlined, SaveOutlined, MailOutlined } from "@ant-design/icons";
 import { nanoid } from "nanoid";
+import dayjs, { Dayjs } from "dayjs";
 
 import ContractRenderer from "../../components/ContractRenderer";
 import ClauseEditor from "../../components/ClauseEditor";
 import { accountingTemplate } from "../../templates/accounting";
-import type {
-  ContractConfig,
-  Clause,
-  SignatureInfo,
-} from "../../types/contract";
+import type { ContractConfig, Clause, SignatureInfo } from "../../types/contract";
 
 const { Title, Text } = Typography;
 
@@ -60,10 +58,67 @@ const REQUIRED_SIGNATURES: SignatureInfo[] = [
   },
 ];
 
-// กัน template/ข้อมูลจาก backend ที่อาจไม่มี fields บางตัว
+// helper: digits only
+const digitsOnly = (s: string) => s.replace(/\D+/g, "");
+
+// helper: Thai months + format/parse BE date
+const TH_MONTHS = [
+  "มกราคม",
+  "กุมภาพันธ์",
+  "มีนาคม",
+  "เมษายน",
+  "พฤษภาคม",
+  "มิถุนายน",
+  "กรกฎาคม",
+  "สิงหาคม",
+  "กันยายน",
+  "ตุลาคม",
+  "พฤศจิกายน",
+  "ธันวาคม",
+];
+
+const formatThaiDateBE = (d: Dayjs) => {
+  const day = d.date();
+  const month = TH_MONTHS[d.month()];
+  const yearBE = d.year() + 543;
+  return `${day} ${month} ${yearBE}`;
+};
+
+// รับ format: "1 สิงหาคม 2568" แล้วแปลงกลับเป็น dayjs (ค.ศ.)
+const parseThaiDateBE = (s: string): Dayjs | null => {
+  const raw = (s || "").trim();
+  if (!raw) return null;
+
+  const m = raw.match(/^(\d{1,2})\s+([^\s]+)\s+(\d{4})$/);
+  if (!m) return null;
+
+  const day = Number(m[1]);
+  const monthName = m[2];
+  const yearBE = Number(m[3]);
+
+  const monthIdx = TH_MONTHS.indexOf(monthName);
+  if (monthIdx < 0 || !Number.isFinite(day) || !Number.isFinite(yearBE))
+    return null;
+
+  const yearCE = yearBE - 543;
+  const d = dayjs().year(yearCE).month(monthIdx).date(day);
+  return d.isValid() ? d : null;
+};
+
+// ✅ กัน template/ข้อมูลจาก backend ที่อาจไม่มี fields บางตัว + กัน field ใหม่หาย
 const normalizeConfig = (cfg: ContractConfig): ContractConfig => {
   return {
     ...cfg,
+    partyA: {
+      company: cfg.partyA?.company ?? "",
+      taxId: cfg.partyA?.taxId ?? "",
+      buildNo: cfg.partyA?.buildNo ?? "",
+    },
+    partyB: {
+      company: cfg.partyB?.company ?? "",
+      taxId: cfg.partyB?.taxId ?? "",
+      buildNo: cfg.partyB?.buildNo ?? "",
+    },
     clauses: Array.isArray(cfg.clauses) ? cfg.clauses : [],
     signatures: Array.isArray(cfg.signatures) ? cfg.signatures : [],
   };
@@ -105,11 +160,15 @@ export default function ContractEditor() {
     ensureSignatures(accountingTemplate),
   );
 
+  // ✅ ให้ DatePicker โชว์ค่าตาม config.date (ไทย พ.ศ.)
+  const [dateValue, setDateValue] = useState<Dayjs | null>(() =>
+    parseThaiDateBE(accountingTemplate.date),
+  );
+
   const [documentId, setDocumentId] = useState<string | null>(null);
   const [email, setEmail] = useState("");
 
   const [isDirty, setIsDirty] = useState(false);
-
 
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
@@ -118,9 +177,7 @@ export default function ContractEditor() {
   const setConfigDirty = (
     next: ContractConfig | ((prev: ContractConfig) => ContractConfig),
   ) => {
-    setConfig((prev) =>
-      typeof next === "function" ? (next as any)(prev) : next,
-    );
+    setConfig((prev) => (typeof next === "function" ? next(prev) : next));
     setIsDirty(true);
   };
 
@@ -137,9 +194,11 @@ export default function ContractEditor() {
       .then((res) => res.json())
       .then((data) => {
         if (data?.config) {
-          setConfig(ensureSignatures(data.config));
+          const loaded = ensureSignatures(data.config as ContractConfig);
+          setConfig(loaded);
           setDocumentId(savedId);
-          setIsDirty(false); 
+          setIsDirty(false);
+          setDateValue(parseThaiDateBE(loaded.date)); // ✅ sync datepicker
           message.success("โหลดสัญญาล่าสุดเรียบร้อยแล้ว");
         }
       })
@@ -198,7 +257,8 @@ export default function ContractEditor() {
       const newSigns = [...(safe.signatures || [])];
       if (!newSigns[index]) return safe;
 
-      (newSigns[index] as any)[field] = value;
+      // SignatureInfo มี field เป็น optional อยู่แล้ว
+      (newSigns[index] as SignatureInfo)[field] = value as never;
       return { ...safe, signatures: newSigns };
     });
   };
@@ -229,7 +289,7 @@ export default function ContractEditor() {
 
       setDocumentId(data.documentId);
       localStorage.setItem("lastDocumentId", data.documentId);
-      setIsDirty(false); 
+      setIsDirty(false);
       message.success("บันทึกสัญญาเรียบร้อยแล้ว");
     } catch {
       message.error("บันทึกสัญญาล้มเหลว");
@@ -300,14 +360,11 @@ export default function ContractEditor() {
               }}
             >
               <div>
-                <b>แก้ไขสัญญา</b>{" "}
-                <span style={{ marginLeft: 8 }}>{statusTag}</span>
+                <b>แก้ไขสัญญา</b> <span style={{ marginLeft: 8 }}>{statusTag}</span>
               </div>
               <Space>
                 <Tooltip
-                  title={
-                    documentId ? `DocumentId: ${documentId}` : "ยังไม่เคยบันทึก"
-                  }
+                  title={documentId ? `DocumentId: ${documentId}` : "ยังไม่เคยบันทึก"}
                 >
                   <Tag color={documentId ? "blue" : "default"}>
                     {documentId ? "มีเลขเอกสาร" : "ยังไม่มีเลขเอกสาร"}
@@ -326,12 +383,11 @@ export default function ContractEditor() {
             message="ขั้นตอนแนะนำ"
             description={
               <div style={{ lineHeight: 1.8 }}>
-                1) แก้ไขสัญญาให้เรียบร้อย → 2) กด <b>บันทึกสัญญา</b> → 3)
-                กรอกอีเมล → 4) กด <b>ส่งอีเมลให้เซ็น</b>
+                1) แก้ไขสัญญาให้เรียบร้อย → 2) กด <b>บันทึกสัญญา</b> → 3) กรอกอีเมล → 4) กด{" "}
+                <b>ส่งอีเมลให้เซ็น</b>
                 <br />
                 <Text type="secondary">
-                  *ระบบจะไม่ให้ส่งอีเมล ถ้ายังไม่ได้บันทึกล่าสุด
-                  เพื่อกันส่งข้อมูลเก่า
+                  *ระบบจะไม่ให้ส่งอีเมล ถ้ายังไม่ได้บันทึกล่าสุด เพื่อกันส่งข้อมูลเก่า
                 </Text>
               </div>
             }
@@ -349,11 +405,7 @@ export default function ContractEditor() {
                       ข้อมูลสัญญา
                     </Title>
 
-                    <Space
-                      direction="vertical"
-                      size={10}
-                      style={{ width: "100%" }}
-                    >
+                    <Space direction="vertical" size={10} style={{ width: "100%" }}>
                       <Input
                         placeholder="ชื่อสัญญา"
                         value={config.title}
@@ -361,39 +413,90 @@ export default function ContractEditor() {
                           setConfigDirty({ ...config, title: e.target.value })
                         }
                       />
-                      <Input
-                        placeholder="วันที่"
-                        value={config.date}
-                        onChange={(e) =>
-                          setConfigDirty({ ...config, date: e.target.value })
-                        }
+
+                      {/* ✅ เลือกวันที่จริง + บันทึกเป็นไทย พ.ศ. */}
+                      <DatePicker
+                        style={{ width: "100%", borderRadius: 12, height: 40 }}
+                        placeholder="เลือกวันที่"
+                        format="DD/MM/YYYY"
+                        value={dateValue}
+                        onChange={(val) => {
+                          setDateValue(val);
+                          setConfigDirty({
+                            ...config,
+                            date: val ? formatThaiDateBE(val) : "",
+                          });
+                        }}
+                        allowClear
                       />
+
                       <Input
                         placeholder="บริษัทผู้ว่าจ้าง"
                         value={config.partyA.company}
                         onChange={(e) =>
                           setConfigDirty({
                             ...config,
-                            partyA: {
-                              ...config.partyA,
-                              company: e.target.value,
-                            },
+                            partyA: { ...config.partyA, company: e.target.value },
                           })
                         }
                       />
+
+                      {/* ✅ บริษัทผู้รับจ้าง + เลข Build (ตัวเลขล้วน) อยู่บรรทัดเดียว */}
                       <Input
                         placeholder="บริษัทผู้รับจ้าง"
                         value={config.partyB.company}
                         onChange={(e) =>
                           setConfigDirty({
                             ...config,
-                            partyB: {
-                              ...config.partyB,
-                              company: e.target.value,
-                            },
+                            partyB: { ...config.partyB, company: e.target.value },
                           })
                         }
+                        addonAfter={
+                          <Input
+                            placeholder="Build"
+                            value={config.partyB.buildNo ?? ""}
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            maxLength={10}
+                            onChange={(e) => {
+                              const onlyDigits = digitsOnly(e.target.value);
+                              setConfigDirty({
+                                ...config,
+                                partyB: {
+                                  ...config.partyB,
+                                  buildNo: onlyDigits,
+                                },
+                              });
+                            }}
+                            style={{
+                              width: 92,
+                              border: "none",
+                              boxShadow: "none",
+                            }}
+                          />
+                        }
                       />
+
+                      {/* ✅ เลขนิติบุคคลผู้รับจ้าง: ตัวเลขล้วน 13 หลัก */}
+                      <Input
+                        placeholder="เลขนิติบุคคล (ผู้รับจ้าง)"
+                        value={config.partyB.taxId ?? ""}
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={13}
+                        showCount
+                        onChange={(e) => {
+                          const onlyDigits = digitsOnly(e.target.value);
+                          setConfigDirty({
+                            ...config,
+                            partyB: { ...config.partyB, taxId: onlyDigits },
+                          });
+                        }}
+                      />
+
+                      <Text type="secondary" style={{ marginTop: -4 }}>
+                        วันที่ในสัญญา: <b>{config.date || "-"}</b>
+                      </Text>
                     </Space>
                   </>
                 ),
@@ -441,9 +544,7 @@ export default function ContractEditor() {
                         showUploadList={false}
                         beforeUpload={handleStampUpload}
                       >
-                        <Button icon={<UploadOutlined />}>
-                          อัปโหลดตราประทับ
-                        </Button>
+                        <Button icon={<UploadOutlined />}>อัปโหลดตราประทับ</Button>
                       </Upload>
 
                       {config.stamp ? (
@@ -506,11 +607,7 @@ export default function ContractEditor() {
                           </div>
                         }
                       >
-                        <Space
-                          direction="vertical"
-                          size={8}
-                          style={{ width: "100%" }}
-                        >
+                        <Space direction="vertical" size={8} style={{ width: "100%" }}>
                           <Input
                             placeholder="ชื่อผู้ลงนาม"
                             value={sign.name}
@@ -527,9 +624,7 @@ export default function ContractEditor() {
                           />
                         </Space>
 
-                        <div
-                          style={{ marginTop: 10, fontSize: 12, color: "#777" }}
-                        >
+                        <div style={{ marginTop: 10, fontSize: 12, color: "#777" }}>
                           Preview บรรทัดลงชื่อ:{" "}
                           {sign.inlineName && sign.name ? (
                             <b>
@@ -554,15 +649,9 @@ export default function ContractEditor() {
                 label: "ส่งเอกสาร",
                 children: (
                   <>
-                    <Divider style={{ marginTop: 6 }}>
-                      บันทึก & ส่งอีเมล
-                    </Divider>
+                    <Divider style={{ marginTop: 6 }}>บันทึก & ส่งอีเมล</Divider>
 
-                    <Space
-                      direction="vertical"
-                      size={10}
-                      style={{ width: "100%" }}
-                    >
+                    <Space direction="vertical" size={10} style={{ width: "100%" }}>
                       <Button
                         type="primary"
                         block
@@ -604,10 +693,10 @@ export default function ContractEditor() {
                           !documentId
                             ? "ต้องบันทึกสัญญาก่อน"
                             : isDirty
-                              ? "มีการแก้ไขที่ยังไม่ได้บันทึก"
-                              : !email.trim()
-                                ? "กรุณากรอกอีเมล"
-                                : ""
+                            ? "มีการแก้ไขที่ยังไม่ได้บันทึก"
+                            : !email.trim()
+                            ? "กรุณากรอกอีเมล"
+                            : ""
                         }
                       >
                         <Button
@@ -630,8 +719,7 @@ export default function ContractEditor() {
                       )}
                       {documentId && isDirty && (
                         <Tag color="red" style={{ width: "fit-content" }}>
-                          แก้ไขแล้วแต่ยังไม่บันทึก: ต้องกด “บันทึกสัญญา”
-                          ก่อนส่งอีเมล
+                          แก้ไขแล้วแต่ยังไม่บันทึก: ต้องกด “บันทึกสัญญา” ก่อนส่งอีเมล
                         </Tag>
                       )}
                     </Space>
@@ -642,9 +730,8 @@ export default function ContractEditor() {
           />
         </Card>
       </div>
-      <div
-        style={{ flex: 1, height: "100%", overflow: "auto", paddingRight: 8 }}
-      >
+
+      <div style={{ flex: 1, height: "100%", overflow: "auto", paddingRight: 8 }}>
         <Card
           title={
             <div
@@ -655,11 +742,7 @@ export default function ContractEditor() {
               }}
             >
               <b>Preview</b>
-              {isDirty ? (
-                <Tag color="red">Unsaved changes</Tag>
-              ) : (
-                <Tag color="green">Saved</Tag>
-              )}
+              {isDirty ? <Tag color="red">Unsaved changes</Tag> : <Tag color="green">Saved</Tag>}
             </div>
           }
           style={{ flex: 1, borderRadius: 14 }}

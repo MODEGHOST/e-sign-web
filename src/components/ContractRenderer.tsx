@@ -54,15 +54,26 @@ export default function ContractRenderer({
             transform: "translate(-50%, -50%)",
             textAlign: "center",
             color: "#ff5e00",
-            fontSize: "30px",
-            fontWeight: "bold",
             fontFamily: "'Prompt', sans-serif",
+            fontWeight: "bold",
           }}
         >
-          <span>
-            {config.partyB.company || "ชื่อบริษัทลูกค้า"}{" "}
-            {/* ใช้ข้อมูลจาก config */}
-          </span>
+          <div style={{ fontSize: 30, lineHeight: 1.2 }}>
+            {config.partyB.company || "ชื่อบริษัทลูกค้า"}
+          </div>
+
+          <div
+            style={{
+              fontSize: 30,
+              marginTop: 8,
+              textAlign: "center",
+              color: "#ff5e00",
+              fontFamily: "'Prompt', sans-serif",
+              fontWeight: "bold",
+            }}
+          >
+            {config.partyB.taxId || "เลขนิติบุคคลลูกค้า"}
+          </div>
         </div>
       </div>
 
@@ -74,7 +85,10 @@ export default function ContractRenderer({
             <Watermark height={30} width={140} image={bmuOpacity}>
               <div className="contract-body">
                 <div className="avoid-break">
-                  <Title level={3} style={{ textAlign: "center", margin: "0 0 8px" }}>
+                  <Title
+                    level={3}
+                    style={{ textAlign: "center", margin: "0 0 8px" }}
+                  >
                     {config.title}
                   </Title>
                   <Paragraph style={{ textAlign: "right", margin: "0 0 14px" }}>

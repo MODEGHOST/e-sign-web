@@ -1,3 +1,5 @@
+// src/types/contract.ts
+
 // รองรับ block หลายแบบในข้อสัญญา
 export type ClauseBlock =
   | {
@@ -21,24 +23,24 @@ export type SignatureInfo = {
   name?: string;
   position?: string;
   image?: string;
-  inlineName?: boolean; // ✅ เพิ่ม
+  inlineName?: boolean;
 };
 
+export type ContractParty = {
+  company: string;
+  taxId?: string;
+  buildNo?: string;
+};
 
 export type ContractConfig = {
   title: string;
   date: string;
-  partyA: {
-    company: string;
-    taxId?: string;
-  };
-  partyB: {
-    company: string;
-    taxId?: string;
-  };
+
+  partyA: ContractParty;
+  partyB: ContractParty;
+
   clauses: Clause[];
 
   stamp?: string | null;
   signatures: SignatureInfo[];
 };
-
