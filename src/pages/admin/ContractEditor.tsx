@@ -33,28 +33,28 @@ const REQUIRED_SIGNATURES: SignatureInfo[] = [
   {
     id: "sig-company-director",
     role: "company_director",
-    name: "กรรมการบริษัท",
+    name: "พี่แนน",
     position: "",
     inlineName: true,
   },
   {
     id: "sig-company-witness",
     role: "company_witness",
-    name: "พยาน (บริษัท)",
+    name: "พี่เอ",
     position: "",
     inlineName: false,
   },
   {
     id: "sig-customer-director",
     role: "customer_director",
-    name: "กรรมการลูกค้า",
+    name: "",
     position: "",
     inlineName: true,
   },
   {
     id: "sig-customer-witness",
     role: "customer_witness",
-    name: "พยาน (ลูกค้า)",
+    name: "",
     position: "",
     inlineName: false,
   },
@@ -101,7 +101,6 @@ const displayRole = (sign: SignatureInfo) =>
     : roleLabel(sign.role);
 
 export default function ContractEditor() {
-  // ✅ ทำให้ template ได้ signatures ครบ 4 ตั้งแต่เริ่ม
   const [config, setConfig] = useState<ContractConfig>(() =>
     ensureSignatures(accountingTemplate),
   );
@@ -109,10 +108,9 @@ export default function ContractEditor() {
   const [documentId, setDocumentId] = useState<string | null>(null);
   const [email, setEmail] = useState("");
 
-  // ✅ dirty state (กันส่งข้อมูลเก่า)
   const [isDirty, setIsDirty] = useState(false);
 
-  // ✅ loading กันกดซ้ำ
+
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
 
@@ -141,7 +139,7 @@ export default function ContractEditor() {
         if (data?.config) {
           setConfig(ensureSignatures(data.config));
           setDocumentId(savedId);
-          setIsDirty(false); // ✅ โหลดมา = ถือว่า saved
+          setIsDirty(false); 
           message.success("โหลดสัญญาล่าสุดเรียบร้อยแล้ว");
         }
       })
@@ -231,7 +229,7 @@ export default function ContractEditor() {
 
       setDocumentId(data.documentId);
       localStorage.setItem("lastDocumentId", data.documentId);
-      setIsDirty(false); // ✅ บันทึกสำเร็จ
+      setIsDirty(false); 
       message.success("บันทึกสัญญาเรียบร้อยแล้ว");
     } catch {
       message.error("บันทึกสัญญาล้มเหลว");
@@ -243,7 +241,6 @@ export default function ContractEditor() {
   const canSend = !!documentId && !isDirty && !!email.trim() && !sending;
 
   const sendEmail = async () => {
-    // ✅ บังคับกดบันทึกก่อนเท่านั้น
     if (!documentId) return message.warning("กรุณากดบันทึกสัญญาก่อน");
     if (isDirty)
       return message.warning(
