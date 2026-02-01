@@ -7,6 +7,13 @@ import type { ContractConfig } from "../../types/contract";
 type ApiSignature = {
   role: string;
   signature_image: string;
+  signer_name?: string | null;
+  signer_position?: string | null;
+  signer_role?: "CUSTOMER" | "COMPANY"; // ✅ สำคัญมาก
+};
+
+type SignedPayloadItem = {
+  image: string;
   signer_name?: string;
   signer_position?: string;
 };
@@ -18,7 +25,9 @@ export default function CompanySign() {
   const [status, setStatus] = useState<string>("PENDING");
 
   const [companySigned, setCompanySigned] = useState<Record<string, any>>({});
-  const [customerSigMap, setCustomerSigMap] = useState<Record<string, any>>({});
+  const [customerSigMap, setCustomerSigMap] = useState<
+    Record<string, SignedPayloadItem | string>
+  >({});
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -42,7 +51,7 @@ export default function CompanySign() {
         ]);
 
         if (!contractRes.ok) throw new Error("ไม่สามารถดึงข้อมูลสัญญาได้");
-        if (!sigRes.ok) throw new Error("ไม่สามารถดึงลายเซ็นลูกค้าได้");
+        if (!sigRes.ok) throw new Error("ไม่สามารถดึงลายเซ็นได้");
 
         const contractData = await contractRes.json();
         const sigData: { signatures: ApiSignature[] } = await sigRes.json();
@@ -53,17 +62,25 @@ export default function CompanySign() {
         setStatus(contractData.status || "PENDING");
 
         const locked =
-          contractData.status === "COMPLETED" || contractData.status === "COMPANY_SIGNED";
+          contractData.status === "COMPLETED" ||
+          contractData.status === "COMPANY_SIGNED";
         setSubmitted(locked);
 
-        // ✅ map เป็น object: { image, signer_name, signer_position }
-        const map: Record<string, any> = {};
+        /**
+         * ✅ FIX: เอาเฉพาะลายเซ็นของ CUSTOMER มาทำ map
+         * กันเคส COMPANY มา overwrite แล้วชื่อ/ตำแหน่งลูกค้าหาย
+         */
+        const map: Record<string, SignedPayloadItem> = {};
         (sigData.signatures || []).forEach((s) => {
           if (!s?.role) return;
+
+          const sr = String(s.signer_role || "").toUpperCase();
+          if (sr !== "CUSTOMER") return;
+
           map[s.role] = {
             image: s.signature_image,
-            signer_name: s.signer_name || "",
-            signer_position: s.signer_position || "",
+            signer_name: String(s.signer_name || ""),
+            signer_position: String(s.signer_position || ""),
           };
         });
 
@@ -85,9 +102,15 @@ export default function CompanySign() {
     };
   }, [apiBase, documentId, modal]);
 
-  const readOnly = useMemo(() => submitting || submitted, [submitting, submitted]);
+  const readOnly = useMemo(
+    () => submitting || submitted,
+    [submitting, submitted],
+  );
 
-  const canSubmit = useMemo(() => Object.keys(companySigned).length > 0, [companySigned]);
+  const canSubmit = useMemo(
+    () => Object.keys(companySigned).length > 0,
+    [companySigned],
+  );
 
   const handleCompanySign = async () => {
     if (!documentId) return;
@@ -128,11 +151,14 @@ export default function CompanySign() {
     setSubmitting(true);
 
     try {
-      const res = await fetch(`${apiBase}/api/contracts/${documentId}/company-sign`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ signatures: companySigned }),
-      });
+      const res = await fetch(
+        `${apiBase}/api/contracts/${documentId}/company-sign`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ signatures: companySigned }),
+        },
+      );
 
       loadingRef.destroy();
 
@@ -214,11 +240,18 @@ export default function CompanySign() {
         />
 
         <div style={{ textAlign: "center", marginTop: 24 }}>
-          <Button type="primary" onClick={handleCompanySign} loading={submitting} disabled={readOnly}>
+          <Button
+            type="primary"
+            onClick={handleCompanySign}
+            loading={submitting}
+            disabled={readOnly}
+          >
             {submitted ? "✅ บริษัทเซ็นเรียบร้อยแล้ว" : "🏢 บริษัทเซ็นและยืนยัน"}
           </Button>
 
-          {submitted && <div style={{ marginTop: 10, opacity: 0.75 }}>สถานะ: {status}</div>}
+          {submitted && (
+            <div style={{ marginTop: 10, opacity: 0.75 }}>สถานะ: {status}</div>
+          )}
         </div>
       </div>
     </div>

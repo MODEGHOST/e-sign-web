@@ -9,13 +9,22 @@ const { Title, Paragraph } = Typography;
 
 const HeaderBar = () => <div className="content-header-band" />;
 
+type SignedPayloadItem = {
+  image: string;
+  signer_name?: string;
+  signer_position?: string;
+};
+
 type Props = {
   config: ContractConfig;
   mode?: "edit" | "view" | "final";
-  onSignedAll?: (data: Record<string, any>, stamp?: string | null) => void;
+  onSignedAll?: (
+    data: Record<string, SignedPayloadItem>,
+    stamp?: string | null,
+  ) => void;
 
-  // ✅ รองรับ object ต่อ role ได้
-  customerSignatureMap?: Record<string, any>;
+  // ✅ รองรับ string/object ต่อ role
+  customerSignatureMap?: Record<string, SignedPayloadItem | string>;
 
   viewFor?: "customer" | "company" | "all";
   customerStamp?: string | null;

@@ -100,12 +100,19 @@ function SignItem({
     justifyContent: "center",
   };
 
+  /**
+   * ✅ FIX บัค: ลูกค้าเซ็นแล้วชื่อ role ที่ inlineName=false ไม่แสดง
+   * - ใน UI (edit/view) ให้โชว์ชื่อเสมอถ้ามี
+   * - ใน final (พิมพ์/PDF) ค่อยเคารพ inlineName ตามเดิม
+   */
+  const showNameInline = mode === "final" ? !!inlineName : true;
+
   const nameLine = (
     <Text style={{ fontSize: 14 }}>
       (ลงชื่อ){" "}
-      {inlineName && name ? (
+      {showNameInline && name?.trim() ? (
         <>
-          {".......... "} {name} {" .......... "}
+          {".......... "} {name.trim()} {" .......... "}
         </>
       ) : (
         <>{"........................................................ "}</>
@@ -122,7 +129,11 @@ function SignItem({
             <img
               src={toImgSrc(image)}
               alt={name ?? role}
-              style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
+              style={{
+                maxWidth: "100%",
+                maxHeight: "100%",
+                objectFit: "contain",
+              }}
             />
           ) : (
             <div style={{ width: "100%", height: 90 }} />
@@ -141,7 +152,11 @@ function SignItem({
             <img
               src={toImgSrc(image)}
               alt={name ?? role}
-              style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
+              style={{
+                maxWidth: "100%",
+                maxHeight: "100%",
+                objectFit: "contain",
+              }}
             />
           ) : null}
         </div>
@@ -173,7 +188,9 @@ function SignItem({
             ref={sigRef}
             penColor="black"
             onEnd={handleEnd}
-            canvasProps={{ style: { width: "100%", height: "100%", display: "block" } }}
+            canvasProps={{
+              style: { width: "100%", height: "100%", display: "block" },
+            }}
           />
         )}
       </div>
@@ -210,8 +227,11 @@ type ContractSignSectionProps = {
   }[];
   mode?: "edit" | "view" | "final";
 
-  // ✅ ส่ง object ต่อ role
-  onSignedAll?: (signatures: Record<string, SignedPayloadItem>, stamp?: string | null) => void;
+  // ✅ ส่ง object ต่อ role ให้ backend เก็บ name/position ได้
+  onSignedAll?: (
+    signatures: Record<string, SignedPayloadItem>,
+    stamp?: string | null,
+  ) => void;
 
   // ✅ รับได้ทั้ง string/object
   customerSignatureMap?: Record<string, SignedPayloadItem | string>;
@@ -238,7 +258,8 @@ export default function ContractSignSection({
   const isFinal = mode === "final";
 
   const canCustomerUploadStamp = viewFor === "customer" && mode === "edit";
-  const showCustomerStampBox = viewFor !== "customer" || mode !== "edit" || canCustomerUploadStamp;
+  const showCustomerStampBox =
+    viewFor !== "customer" || mode !== "edit" || canCustomerUploadStamp;
 
   const handleSigned = (dataUrl: string, role: string) => {
     setSignData((prev) => {
@@ -252,7 +273,10 @@ export default function ContractSignSection({
     });
   };
 
-  const updateMeta = (role: string, patch: Partial<Pick<SignedPayloadItem, "signer_name" | "signer_position">>) => {
+  const updateMeta = (
+    role: string,
+    patch: Partial<Pick<SignedPayloadItem, "signer_name" | "signer_position">>,
+  ) => {
     setSignData((prev) => {
       const cur = prev[role] || { image: "" };
       const next: Record<string, SignedPayloadItem> = {
@@ -267,7 +291,6 @@ export default function ContractSignSection({
   const handleCustomerStampUpload = async (file: File) => {
     const dataUrl = await readAsDataUrl(file);
     onCustomerStampChange?.(dataUrl);
-    // stamp จะถูกส่งจาก DisplayContract ผ่าน state customerStamp อยู่แล้ว
   };
 
   const filtered = useMemo(() => {
@@ -276,7 +299,10 @@ export default function ContractSignSection({
     return signatures;
   }, [signatures, viewFor]);
 
-  const resolveItemMode = (role: string, base: "edit" | "view" | "final"): "edit" | "view" | "final" => {
+  const resolveItemMode = (
+    role: string,
+    base: "edit" | "view" | "final",
+  ): "edit" | "view" | "final" => {
     if (base === "final") return "final";
     if (viewFor === "customer") return isCustomerRole(role) ? "edit" : "view";
     if (viewFor === "company") return isCompanyRole(role) ? "edit" : "view";
@@ -286,7 +312,14 @@ export default function ContractSignSection({
   return (
     <div className="signature-section" style={{ marginTop: 40 }}>
       {showSectionStamp && (
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            marginBottom: 16,
+          }}
+        >
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <Text strong>ตราบริษัท</Text>
             <img
@@ -297,7 +330,14 @@ export default function ContractSignSection({
           </div>
 
           {showCustomerStampBox && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+                alignItems: "flex-end",
+              }}
+            >
               <Text strong>ตราลูกค้า</Text>
 
               {canCustomerUploadStamp ? (
@@ -342,14 +382,17 @@ export default function ContractSignSection({
 
       <Row className="gy-4 gx-4">
         {filtered.map((sig) => {
+          // ✅ ของที่ดึงจาก DB (company page) จะมาอยู่ใน customerSignatureMap
           const mapped = customerSignatureMap[sig.role];
           const mappedImg = pickImg(mapped);
           const mappedName = pickName(mapped);
           const mappedPos = pickPos(mapped);
 
+          // ✅ ของที่กรอก/เซ็นบนหน้านั้น ๆ
           const local = signData[sig.role];
           const localImg = local?.image || "";
 
+          // priority: mapped(DB) > local(current) > config
           const img = mappedImg || localImg || sig.image;
           const name = mappedName || local?.signer_name || sig.name;
           const position = mappedPos || local?.signer_position || sig.position;
@@ -361,7 +404,9 @@ export default function ContractSignSection({
 
           const locked = itemMode !== "edit" || isMapped || isFinal;
 
-          const showMetaInputs = itemMode === "edit" && isCustomerRole(sig.role);
+          // ✅ meta input ให้กรอกเฉพาะฝั่งลูกค้าและเฉพาะตอน edit
+          const showMetaInputs =
+            itemMode === "edit" && viewFor === "customer" && isCustomerRole(sig.role);
 
           return (
             <Col md={6} key={sig.id}>
@@ -382,13 +427,17 @@ export default function ContractSignSection({
                     <Input
                       placeholder="ชื่อผู้ลงนาม"
                       value={signData[sig.role]?.signer_name ?? ""}
-                      onChange={(e) => updateMeta(sig.role, { signer_name: e.target.value })}
+                      onChange={(e) =>
+                        updateMeta(sig.role, { signer_name: e.target.value })
+                      }
                       style={{ borderRadius: 10, height: 40 }}
                     />
                     <Input
                       placeholder="ตำแหน่ง"
                       value={signData[sig.role]?.signer_position ?? ""}
-                      onChange={(e) => updateMeta(sig.role, { signer_position: e.target.value })}
+                      onChange={(e) =>
+                        updateMeta(sig.role, { signer_position: e.target.value })
+                      }
                       style={{ borderRadius: 10, height: 40 }}
                     />
                   </div>
