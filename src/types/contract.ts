@@ -1,13 +1,7 @@
-// รองรับ block หลายแบบในข้อสัญญา
+// src/types/contract.ts
 export type ClauseBlock =
-  | {
-      type: "text";
-      content: string;
-    }
-  | {
-      type: "list";
-      items: string[];
-    };
+  | { type: "text"; content: string }
+  | { type: "list"; items: string[] };
 
 export type Clause = {
   id: string;
@@ -21,24 +15,15 @@ export type SignatureInfo = {
   name?: string;
   position?: string;
   image?: string;
-  inlineName?: boolean; // ✅ เพิ่ม
+  inlineName?: boolean;
 };
-
 
 export type ContractConfig = {
   title: string;
   date: string;
-  partyA: {
-    company: string;
-    taxId?: string;
-  };
-  partyB: {
-    company: string;
-    taxId?: string;
-  };
+  partyA: { company: string; taxId?: string };
+  partyB: { company: string; taxId?: string };
   clauses: Clause[];
-
   stamp?: string | null;
   signatures: SignatureInfo[];
 };
-

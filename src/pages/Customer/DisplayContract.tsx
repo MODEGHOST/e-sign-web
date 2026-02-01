@@ -1,9 +1,15 @@
-// DisplayContract.tsx
+// src/pages/customer/DisplayContract.tsx
 import { useParams } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
-import { Button, Modal, Spin, Typography } from "antd";
+import { Button, Card, Input, Modal, Spin, Typography, Tag, Space } from "antd";
 import ContractRenderer from "../../components/ContractRenderer";
 import type { ContractConfig } from "../../types/contract";
+
+type SignMeta = { name: string; position: string };
+type SignMetaMap = Record<string, SignMeta>;
+
+const isCustomerRole = (role: string) =>
+  role === "customer_director" || role === "customer_witness";
 
 export default function DisplayContract() {
   const { documentId } = useParams();
@@ -13,6 +19,7 @@ export default function DisplayContract() {
 
   const [signatures, setSignatures] = useState<Record<string, string>>({});
   const [customerStamp, setCustomerStamp] = useState<string | null>(null);
+  const [customerMeta, setCustomerMeta] = useState<SignMetaMap>({});
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -37,11 +44,25 @@ export default function DisplayContract() {
         const data = await res.json();
         if (!alive) return;
 
-        setConfig(data.config);
+        const cfg: ContractConfig = data.config;
+
+        setConfig(cfg);
         setStatus(data.status || "PENDING");
 
-        const locked = data.status === "CUSTOMER_SIGNED" || data.status === "COMPLETED";
+        const locked =
+          data.status === "CUSTOMER_SIGNED" || data.status === "COMPLETED";
         setSubmitted(locked);
+
+        const init: SignMetaMap = {};
+        (cfg.signatures || [])
+          .filter((s) => isCustomerRole(s.role))
+          .forEach((s) => {
+            init[s.role] = {
+              name: (s.name || "").trim(),
+              position: (s.position || "").trim(),
+            };
+          });
+        setCustomerMeta(init);
       } catch (e: any) {
         modal.error({
           title: "เกิดข้อผิดพลาด",
@@ -57,18 +78,48 @@ export default function DisplayContract() {
     return () => {
       alive = false;
     };
-  }, [apiBase, documentId]);
+  }, [apiBase, documentId, modal]);
 
-  const readOnly = useMemo(() => submitting || submitted, [submitting, submitted]);
+  const readOnly = useMemo(
+    () => submitting || submitted,
+    [submitting, submitted],
+  );
+
+  const updateCustomerMeta = (role: string, patch: Partial<SignMeta>) => {
+    setCustomerMeta((prev) => {
+      const cur = prev[role] || { name: "", position: "" };
+      return { ...prev, [role]: { ...cur, ...patch } };
+    });
+  };
 
   const handleSubmitSignature = async () => {
     if (!documentId) return;
     if (submitting || submitted) return;
+    if (!config) return;
 
-    const payloadSignatures: Record<string, string> = { ...signatures };
-    if (customerStamp) payloadSignatures["customer_stamp"] = customerStamp;
+    const payloadSignatures: Record<
+      string,
+      { image: string; signer_name?: string; signer_position?: string }
+    > = {};
 
-    if (!Object.keys(payloadSignatures).length) {
+    for (const role of Object.keys(signatures)) {
+      const image = signatures[role];
+      if (!image) continue;
+
+      const meta = customerMeta[role];
+      payloadSignatures[role] = {
+        image,
+        signer_name: meta?.name?.trim() || undefined,
+        signer_position: meta?.position?.trim() || undefined,
+      };
+    }
+
+    const payload: any = { signatures: payloadSignatures };
+    if (customerStamp) payload.customer_stamp = customerStamp;
+
+    const hasAnySignature = Object.keys(payloadSignatures).length > 0;
+    const hasStamp = !!customerStamp;
+    if (!hasAnySignature && !hasStamp) {
       modal.warning({
         title: "ยังไม่ได้เซ็น",
         content: "กรุณาเซ็นก่อนส่งกลับบริษัท",
@@ -76,6 +127,20 @@ export default function DisplayContract() {
         centered: true,
       });
       return;
+    }
+
+    for (const role of Object.keys(payloadSignatures)) {
+      if (!isCustomerRole(role)) continue;
+      const meta = customerMeta[role] || { name: "", position: "" };
+      if (!meta.name.trim() || !meta.position.trim()) {
+        modal.warning({
+          title: "กรอกข้อมูลผู้ลงนามให้ครบ",
+          content: "กรุณากรอก “ชื่อ” และ “ตำแหน่ง” ก่อนยืนยันส่งเอกสาร",
+          okText: "เข้าใจแล้ว",
+          centered: true,
+        });
+        return;
+      }
     }
 
     const confirmed = await new Promise<boolean>((resolve) => {
@@ -104,11 +169,14 @@ export default function DisplayContract() {
     setSubmitting(true);
 
     try {
-      const res = await fetch(`${apiBase}/api/contracts/${documentId}/customer-sign`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ signatures: payloadSignatures }),
-      });
+      const res = await fetch(
+        `${apiBase}/api/contracts/${documentId}/customer-sign`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      );
 
       loadingRef.destroy();
 
@@ -182,6 +250,10 @@ export default function DisplayContract() {
     );
   }
 
+  const customerRoles = (config.signatures || [])
+    .filter((s) => isCustomerRole(s.role))
+    .map((s) => s.role);
+
   return (
     <div style={{ margin: "0 auto", maxWidth: 900, position: "relative" }}>
       {contextHolder}
@@ -198,6 +270,66 @@ export default function DisplayContract() {
       )}
 
       <div style={{ position: "relative", zIndex: 1 }}>
+        <Card
+          style={{ marginBottom: 16, borderRadius: 14 }}
+          title={
+            <Space>
+              <b>ข้อมูลผู้ลงนาม (ฝั่งลูกค้า)</b>
+              {readOnly ? (
+                <Tag color="default">ล็อกแล้ว</Tag>
+              ) : (
+                <Tag color="blue">กรอกให้ครบ</Tag>
+              )}
+            </Space>
+          }
+        >
+          <Typography.Paragraph style={{ marginBottom: 12, opacity: 0.85 }}>
+            กรุณากรอก “ชื่อ” และ “ตำแหน่ง” ให้ตรงกับผู้ลงนามในเอกสาร
+          </Typography.Paragraph>
+
+          <Space direction="vertical" size={12} style={{ width: "100%" }}>
+            {customerRoles.map((role) => {
+              const meta = customerMeta[role] || { name: "", position: "" };
+              const label =
+                role === "customer_director"
+                  ? "กรรมการ (ลูกค้า)"
+                  : role === "customer_witness"
+                    ? "พยาน (ลูกค้า)"
+                    : role;
+
+              return (
+                <Card
+                  key={role}
+                  size="small"
+                  style={{ borderRadius: 12, background: "#fafafa" }}
+                  title={<Tag color="blue">{label}</Tag>}
+                >
+                  <Space direction="vertical" size={10} style={{ width: "100%" }}>
+                    <Input
+                      placeholder="ชื่อผู้ลงนาม"
+                      value={meta.name}
+                      disabled={readOnly}
+                      onChange={(e) =>
+                        updateCustomerMeta(role, { name: e.target.value })
+                      }
+                      style={{ borderRadius: 10, height: 40 }}
+                    />
+                    <Input
+                      placeholder="ตำแหน่ง"
+                      value={meta.position}
+                      disabled={readOnly}
+                      onChange={(e) =>
+                        updateCustomerMeta(role, { position: e.target.value })
+                      }
+                      style={{ borderRadius: 10, height: 40 }}
+                    />
+                  </Space>
+                </Card>
+              );
+            })}
+          </Space>
+        </Card>
+
         <ContractRenderer
           config={config}
           mode={readOnly ? "view" : "edit"}
@@ -224,9 +356,7 @@ export default function DisplayContract() {
           </Button>
 
           {submitted && (
-            <div style={{ marginTop: 10, opacity: 0.75 }}>
-              สถานะ: {status}
-            </div>
+            <div style={{ marginTop: 10, opacity: 0.75 }}>สถานะ: {status}</div>
           )}
         </div>
       </div>
