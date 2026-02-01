@@ -1,11 +1,16 @@
-// src/components/ContractSignSection.tsx
-import { Typography, Button } from "antd";
+import { Typography, Button, Input } from "antd";
 import SignatureCanvas from "react-signature-canvas";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Row, Col } from "reactstrap";
 import companyStamp from "../assets/BBMMUUUU.png";
 
 const { Text } = Typography;
+
+type SignedPayloadItem = {
+  image: string;
+  signer_name?: string;
+  signer_position?: string;
+};
 
 const toImgSrc = (sig?: string) =>
   !sig ? "" : sig.startsWith("data:image") ? sig : `data:image/png;base64,${sig}`;
@@ -38,6 +43,21 @@ const readAsDataUrl = (file: File) =>
     r.onerror = () => reject(new Error("อ่านไฟล์ไม่สำเร็จ"));
     r.readAsDataURL(file);
   });
+
+// ✅ รองรับ customerSignatureMap เป็น string หรือ object
+const pickImg = (v: any) => {
+  if (!v) return "";
+  if (typeof v === "string") return v;
+  return v.image || v.signature_image || "";
+};
+const pickName = (v: any) => {
+  if (!v || typeof v === "string") return "";
+  return v.signer_name || v.name || "";
+};
+const pickPos = (v: any) => {
+  if (!v || typeof v === "string") return "";
+  return v.signer_position || v.position || "";
+};
 
 type SignItemProps = {
   role: string;
@@ -131,7 +151,7 @@ function SignItem({
   }
 
   return (
-    <div style={{ marginBottom: 40 }}>
+    <div style={{ marginBottom: 26 }}>
       <div style={{ ...boxStyle, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
         {locked ? (
           image ? (
@@ -165,6 +185,7 @@ function SignItem({
           justifyContent: "space-between",
           alignItems: "center",
           flexWrap: "wrap",
+          gap: 10,
         }}
       >
         {nameLine}
@@ -188,8 +209,13 @@ type ContractSignSectionProps = {
     inlineName?: boolean;
   }[];
   mode?: "edit" | "view" | "final";
-  onSignedAll?: (signatures: Record<string, string>, stamp?: string | null) => void;
-  customerSignatureMap?: Record<string, string>;
+
+  // ✅ ส่ง object ต่อ role
+  onSignedAll?: (signatures: Record<string, SignedPayloadItem>, stamp?: string | null) => void;
+
+  // ✅ รับได้ทั้ง string/object
+  customerSignatureMap?: Record<string, SignedPayloadItem | string>;
+
   viewFor?: "customer" | "company" | "all";
 
   customerStamp?: string | null;
@@ -208,29 +234,47 @@ export default function ContractSignSection({
   onCustomerStampChange,
   showSectionStamp = true,
 }: ContractSignSectionProps) {
-  const [signData, setSignData] = useState<Record<string, string>>({});
+  const [signData, setSignData] = useState<Record<string, SignedPayloadItem>>({});
   const isFinal = mode === "final";
 
   const canCustomerUploadStamp = viewFor === "customer" && mode === "edit";
   const showCustomerStampBox = viewFor !== "customer" || mode !== "edit" || canCustomerUploadStamp;
 
   const handleSigned = (dataUrl: string, role: string) => {
-    const next = { ...signData, [role]: dataUrl };
-    setSignData(next);
+    setSignData((prev) => {
+      const cur = prev[role] || { image: "" };
+      const next: Record<string, SignedPayloadItem> = {
+        ...prev,
+        [role]: { ...cur, image: dataUrl },
+      };
+      onSignedAll?.(next, null);
+      return next;
+    });
+  };
 
-    const merged = customerStamp ? { ...next, customer_stamp: customerStamp } : next;
-    onSignedAll?.(merged, null);
+  const updateMeta = (role: string, patch: Partial<Pick<SignedPayloadItem, "signer_name" | "signer_position">>) => {
+    setSignData((prev) => {
+      const cur = prev[role] || { image: "" };
+      const next: Record<string, SignedPayloadItem> = {
+        ...prev,
+        [role]: { ...cur, ...patch },
+      };
+      onSignedAll?.(next, null);
+      return next;
+    });
   };
 
   const handleCustomerStampUpload = async (file: File) => {
     const dataUrl = await readAsDataUrl(file);
     onCustomerStampChange?.(dataUrl);
-
-    const merged = { ...signData, customer_stamp: dataUrl };
-    onSignedAll?.(merged, null);
+    // stamp จะถูกส่งจาก DisplayContract ผ่าน state customerStamp อยู่แล้ว
   };
 
-  const filtered = signatures.filter((s) => (viewFor === "customer" ? isCustomerRole(s.role) : true));
+  const filtered = useMemo(() => {
+    if (viewFor === "customer") return signatures.filter((s) => isCustomerRole(s.role));
+    if (viewFor === "company") return signatures; // บริษัทเห็นทั้งหมด แต่ edit เฉพาะ company role
+    return signatures;
+  }, [signatures, viewFor]);
 
   const resolveItemMode = (role: string, base: "edit" | "view" | "final"): "edit" | "view" | "final" => {
     if (base === "final") return "final";
@@ -298,27 +342,58 @@ export default function ContractSignSection({
 
       <Row className="gy-4 gx-4">
         {filtered.map((sig) => {
-          const mappedImg = customerSignatureMap[sig.role];
-          const img = mappedImg || sig.image;
-          const isMapped = !!mappedImg;
+          const mapped = customerSignatureMap[sig.role];
+          const mappedImg = pickImg(mapped);
+          const mappedName = pickName(mapped);
+          const mappedPos = pickPos(mapped);
+
+          const local = signData[sig.role];
+          const localImg = local?.image || "";
+
+          const img = mappedImg || localImg || sig.image;
+          const name = mappedName || local?.signer_name || sig.name;
+          const position = mappedPos || local?.signer_position || sig.position;
 
           let itemMode = resolveItemMode(sig.role, mode);
+
+          const isMapped = !!mappedImg;
           if (itemMode !== "final" && isMapped) itemMode = "view";
 
           const locked = itemMode !== "edit" || isMapped || isFinal;
+
+          const showMetaInputs = itemMode === "edit" && isCustomerRole(sig.role);
 
           return (
             <Col md={6} key={sig.id}>
               <SignItem
                 role={sig.role}
-                name={sig.name}
-                position={sig.position}
+                name={name}
+                position={position}
                 inlineName={sig.inlineName}
                 image={img}
                 mode={itemMode}
                 locked={locked}
                 onSigned={locked ? undefined : handleSigned}
               />
+
+              {showMetaInputs && (
+                <div style={{ marginTop: -18, marginBottom: 14 }}>
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <Input
+                      placeholder="ชื่อผู้ลงนาม"
+                      value={signData[sig.role]?.signer_name ?? ""}
+                      onChange={(e) => updateMeta(sig.role, { signer_name: e.target.value })}
+                      style={{ borderRadius: 10, height: 40 }}
+                    />
+                    <Input
+                      placeholder="ตำแหน่ง"
+                      value={signData[sig.role]?.signer_position ?? ""}
+                      onChange={(e) => updateMeta(sig.role, { signer_position: e.target.value })}
+                      style={{ borderRadius: 10, height: 40 }}
+                    />
+                  </div>
+                </div>
+              )}
             </Col>
           );
         })}

@@ -4,7 +4,12 @@ import { Button, Modal, Spin, Typography } from "antd";
 import ContractRenderer from "../../components/ContractRenderer";
 import type { ContractConfig } from "../../types/contract";
 
-type ApiSignature = { role: string; signature_image: string };
+type ApiSignature = {
+  role: string;
+  signature_image: string;
+  signer_name?: string;
+  signer_position?: string;
+};
 
 export default function CompanySign() {
   const { documentId } = useParams();
@@ -12,10 +17,8 @@ export default function CompanySign() {
   const [config, setConfig] = useState<ContractConfig | null>(null);
   const [status, setStatus] = useState<string>("PENDING");
 
-  const [companySigned, setCompanySigned] = useState<Record<string, string>>({});
-  const [customerSigMap, setCustomerSigMap] = useState<Record<string, string>>(
-    {}
-  );
+  const [companySigned, setCompanySigned] = useState<Record<string, any>>({});
+  const [customerSigMap, setCustomerSigMap] = useState<Record<string, any>>({});
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -50,14 +53,20 @@ export default function CompanySign() {
         setStatus(contractData.status || "PENDING");
 
         const locked =
-          contractData.status === "COMPLETED" ||
-          contractData.status === "COMPANY_SIGNED";
+          contractData.status === "COMPLETED" || contractData.status === "COMPANY_SIGNED";
         setSubmitted(locked);
 
-        const map: Record<string, string> = {};
+        // ✅ map เป็น object: { image, signer_name, signer_position }
+        const map: Record<string, any> = {};
         (sigData.signatures || []).forEach((s) => {
-          if (s?.role && s?.signature_image) map[s.role] = s.signature_image;
+          if (!s?.role) return;
+          map[s.role] = {
+            image: s.signature_image,
+            signer_name: s.signer_name || "",
+            signer_position: s.signer_position || "",
+          };
         });
+
         setCustomerSigMap(map);
       } catch (e: any) {
         modal.error({
@@ -74,17 +83,11 @@ export default function CompanySign() {
     return () => {
       alive = false;
     };
-  }, [apiBase, documentId]);
+  }, [apiBase, documentId, modal]);
 
-  const readOnly = useMemo(
-    () => submitting || submitted,
-    [submitting, submitted]
-  );
+  const readOnly = useMemo(() => submitting || submitted, [submitting, submitted]);
 
-  const canSubmit = useMemo(
-    () => Object.keys(companySigned).length > 0,
-    [companySigned]
-  );
+  const canSubmit = useMemo(() => Object.keys(companySigned).length > 0, [companySigned]);
 
   const handleCompanySign = async () => {
     if (!documentId) return;
@@ -125,14 +128,11 @@ export default function CompanySign() {
     setSubmitting(true);
 
     try {
-      const res = await fetch(
-        `${apiBase}/api/contracts/${documentId}/company-sign`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ signatures: companySigned }),
-        }
-      );
+      const res = await fetch(`${apiBase}/api/contracts/${documentId}/company-sign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signatures: companySigned }),
+      });
 
       loadingRef.destroy();
 
@@ -205,6 +205,7 @@ export default function CompanySign() {
         <ContractRenderer
           config={config}
           mode={readOnly ? "view" : "edit"}
+          viewFor="company"
           onSignedAll={(data) => {
             if (readOnly) return;
             setCompanySigned(data);
@@ -213,18 +214,11 @@ export default function CompanySign() {
         />
 
         <div style={{ textAlign: "center", marginTop: 24 }}>
-          <Button
-            type="primary"
-            onClick={handleCompanySign}
-            loading={submitting}
-            disabled={readOnly}
-          >
+          <Button type="primary" onClick={handleCompanySign} loading={submitting} disabled={readOnly}>
             {submitted ? "✅ บริษัทเซ็นเรียบร้อยแล้ว" : "🏢 บริษัทเซ็นและยืนยัน"}
           </Button>
 
-          {submitted && (
-            <div style={{ marginTop: 10, opacity: 0.75 }}>สถานะ: {status}</div>
-          )}
+          {submitted && <div style={{ marginTop: 10, opacity: 0.75 }}>สถานะ: {status}</div>}
         </div>
       </div>
     </div>

@@ -1,4 +1,3 @@
-// src/components/ContractRenderer.tsx
 import { Typography, Watermark } from "antd";
 import type { ContractConfig } from "../types/contract";
 import "../styles/a4.css";
@@ -13,8 +12,11 @@ const HeaderBar = () => <div className="content-header-band" />;
 type Props = {
   config: ContractConfig;
   mode?: "edit" | "view" | "final";
-  onSignedAll?: (data: Record<string, string>, stamp?: string | null) => void;
-  customerSignatureMap?: Record<string, string>;
+  onSignedAll?: (data: Record<string, any>, stamp?: string | null) => void;
+
+  // ✅ รองรับ object ต่อ role ได้
+  customerSignatureMap?: Record<string, any>;
+
   viewFor?: "customer" | "company" | "all";
   customerStamp?: string | null;
   onCustomerStampChange?: (dataUrl: string | null) => void;
@@ -33,7 +35,6 @@ export default function ContractRenderer({
     <>
       {/* หน้า Cover (หน้าปก) */}
       <div className="a4-page a4-cover" style={{ position: "relative" }}>
-        {/* รูปภาพหน้าปก */}
         <img
           src={coverImage}
           alt="หน้าปกสัญญา"
@@ -45,7 +46,6 @@ export default function ContractRenderer({
           }}
         />
 
-        {/* ข้อความชื่อบริษัทลูกค้า */}
         <div
           style={{
             position: "absolute",
@@ -59,10 +59,7 @@ export default function ContractRenderer({
             fontFamily: "'Prompt', sans-serif",
           }}
         >
-          <span>
-            {config.partyB.company || "ชื่อบริษัทลูกค้า"}{" "}
-            {/* ใช้ข้อมูลจาก config */}
-          </span>
+          <span>{config.partyB.company || "ชื่อบริษัทลูกค้า"} </span>
         </div>
       </div>
 
@@ -74,7 +71,10 @@ export default function ContractRenderer({
             <Watermark height={30} width={140} image={bmuOpacity}>
               <div className="contract-body">
                 <div className="avoid-break">
-                  <Title level={3} style={{ textAlign: "center", margin: "0 0 8px" }}>
+                  <Title
+                    level={3}
+                    style={{ textAlign: "center", margin: "0 0 8px" }}
+                  >
                     {config.title}
                   </Title>
                   <Paragraph style={{ textAlign: "right", margin: "0 0 14px" }}>
