@@ -64,6 +64,12 @@ const REQUIRED_SIGNATURES: SignatureInfo[] = [
 const normalizeConfig = (cfg: ContractConfig): ContractConfig => {
   return {
     ...cfg,
+    partyA: cfg.partyA || { company: "" },
+    partyB: { 
+      company: cfg.partyB?.company || "", 
+      taxId: cfg.partyB?.taxId || "",
+      address: cfg.partyB?.address || "" 
+    },
     clauses: Array.isArray(cfg.clauses) ? cfg.clauses : [],
     signatures: Array.isArray(cfg.signatures) ? cfg.signatures : [],
   };
@@ -386,13 +392,40 @@ export default function ContractEditor() {
                       />
                       <Input
                         placeholder="บริษัทผู้รับจ้าง"
-                        value={config.partyB.company}
+                        value={config.partyB?.company || ""}
                         onChange={(e) =>
                           setConfigDirty({
                             ...config,
                             partyB: {
-                              ...config.partyB,
+                              ...(config.partyB || {}),
                               company: e.target.value,
+                            },
+                          })
+                        }
+                      />
+                      <Input
+                        placeholder="เลขผู้เสียภาษี (ผู้ว่าจ้าง)"
+                        value={config.partyB?.taxId || ""}
+                        onChange={(e) =>
+                          setConfigDirty({
+                            ...config,
+                            partyB: {
+                              ...(config.partyB || {}),
+                              taxId: e.target.value,
+                            },
+                          })
+                        }
+                      />
+                      <Input.TextArea
+                        placeholder="ที่อยู่ (ผู้ว่าจ้าง)"
+                        value={config.partyB?.address || ""}
+                        autoSize={{ minRows: 2, maxRows: 4 }}
+                        onChange={(e) =>
+                          setConfigDirty({
+                            ...config,
+                            partyB: {
+                              ...(config.partyB || {}),
+                              address: e.target.value,
                             },
                           })
                         }

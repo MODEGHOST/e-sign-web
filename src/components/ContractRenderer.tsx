@@ -42,7 +42,6 @@ export default function ContractRenderer({
 }: Props) {
   return (
     <>
-      {/* หน้า Cover (หน้าปก) */}
       <div className="a4-page a4-cover" style={{ position: "relative" }}>
         <img
           src={coverImage}
@@ -63,12 +62,28 @@ export default function ContractRenderer({
             transform: "translate(-50%, -50%)",
             textAlign: "center",
             color: "#ff5e00",
-            fontSize: "30px",
-            fontWeight: "bold",
             fontFamily: "'Prompt', sans-serif",
+            fontWeight: "bold",
+            width: "80%", // Ensure it doesn't overflow the page width
           }}
         >
-          <span>{config.partyB.company || "ชื่อบริษัทลูกค้า"} </span>
+          {/* ชื่อบริษัท: ปรับขนาดอักษรอัตโนมัติ */}
+          <div
+            style={{
+              fontSize:
+                (config.partyB?.company?.length || 0) > 40 ? "24px" : "30px",
+              lineHeight: 1.4,
+            }}
+          >
+            ชื่อบริษัท : {config.partyB?.company || "ชื่อบริษัทลูกค้า"}
+          </div>
+
+          {/* เลขทะเบียนนิติบุคคล: คนละบรรทัด */}
+          {config.partyB?.taxId && (
+            <div style={{ fontSize: "24px", marginTop: "8px" }}>
+              เลขทะเบียนนิติบุคคล : {config.partyB?.taxId}
+            </div>
+          )}
         </div>
       </div>
 
@@ -130,8 +145,13 @@ export default function ContractRenderer({
                       whiteSpace: "nowrap",
                     }}
                   >
-                    {config.partyB.company}
+                    {config.partyB?.company || "ชื่อบริษัทลูกค้า"}
                   </b>
+                  {config.partyB?.address && (
+                    <span>
+                      {config.partyB.address}{" "}
+                    </span>
+                  )}
                   ซึ่งต่อไปนี้ในสัญญาเรียกว่า “ผู้ว่าจ้าง”
                   <br />
                   <span

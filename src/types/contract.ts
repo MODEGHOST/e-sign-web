@@ -22,7 +22,7 @@ export type ContractConfig = {
   title: string;
   date: string;
   partyA: { company: string; taxId?: string };
-  partyB: { company: string; taxId?: string };
+  partyB: { company: string; taxId?: string; address?: string };
   clauses: Clause[];
   stamp?: string | null;
   signatures: SignatureInfo[];
